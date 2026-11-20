@@ -32,6 +32,7 @@ import {
   sanitizeSlug,
 } from './businessDefaults';
 import { parsePathRoute } from './router';
+import { DEFAULT_MOTION_CONFIG, syncDashboardMotionFromSite } from './dashboardMotion';
 
 export function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -847,6 +848,7 @@ export const DEFAULT_SITE: SiteSettings = {
   defaultCurrency: 'د.ع',
   homeThemeMode: 'light',
   adminThemeMode: 'light',
+  motionConfig: { ...DEFAULT_MOTION_CONFIG },
 };
 
 export const DEFAULT_HOME: HomeSettings = {
@@ -1102,6 +1104,7 @@ export function applyScopedTheme(pathname?: string) {
     const curSite = getSite();
     mode = resolveEffectiveThemeMode(curSite.homeThemeMode || 'light');
   }
+  syncDashboardMotionFromSite(getSite(), path);
   void host;
   applyTheme(buildThemeForMode(mode, getTheme()), { silent: true });
 }

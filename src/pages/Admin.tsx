@@ -8,6 +8,7 @@ import { motion, useReducedMotion } from 'motion/react';
 import {
   FontTypographyConfig,
   HomeSettings,
+  MotionSettingsConfig,
   PricingPlan,
   ProblemReport,
   Restaurant,
@@ -49,6 +50,9 @@ const TelegramSettingsCard = lazy(() =>
 const PlanFeaturesOrderEditor = lazy(() =>
   import('../components/admin/PlanFeaturesOrderEditor').then((m) => ({ default: m.PlanFeaturesOrderEditor }))
 );
+const AdminAnimationsSection = lazy(() =>
+  import('../components/admin/AdminAnimationsSection').then((m) => ({ default: m.AdminAnimationsSection }))
+);
 import {
   SystemInfrastructureCard,
   SystemLiveStatusBadge,
@@ -76,9 +80,12 @@ import {
   waLink,
 } from '../utils/storage';
 import {
+  DEFAULT_MOTION_CONFIG,
   dashCardMotion,
   dashSectionMotion,
   dashTabMotion,
+  getMotionPresetById,
+  syncDashboardMotionFromSite,
 } from '../utils/dashboardMotion';
 import {
   Home,
@@ -110,6 +117,7 @@ import {
   AlertTriangle,
   Loader2,
   Save,
+  Sparkles,
 } from 'lucide-react';
 
 interface AdminViewProps {
@@ -125,13 +133,13 @@ interface AdminViewProps {
   showToast: (msg: string) => void;
 }
 
-type MainTab = 'home' | 'ov' | 'partners' | 'preview' | 'home_editor' | 'notes' | 'reports' | 'staff' | 'database' | 'settings' | 'account';
+type MainTab = 'home' | 'ov' | 'partners' | 'preview' | 'home_editor' | 'notes' | 'reports' | 'staff' | 'animations' | 'database' | 'settings' | 'account';
 
 function normalizeInitialTab(sub?: string): MainTab {
   if (!sub) return 'home';
   if (sub === 'accounts') return 'partners';
   if (sub === 'home-editor' || sub === 'plans') return 'home_editor';
-  if (['home', 'ov', 'partners', 'preview', 'home_editor', 'notes', 'reports', 'staff', 'database', 'settings', 'account'].includes(sub)) {
+  if (['home', 'ov', 'partners', 'preview', 'home_editor', 'notes', 'reports', 'staff', 'animations', 'database', 'settings', 'account'].includes(sub)) {
     return sub as MainTab;
   }
   return 'home';
@@ -254,6 +262,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
     if (theme) setEditTheme(theme);
   }, [theme]);
 
+  useEffect(() => {
+    syncDashboardMotionFromSite(editSite, `/admin/${activeTab}`);
+  }, [editSite.motionConfig, activeTab]);
+
   const setActiveTab = (t: MainTab) => {
     setActiveTabState(t);
     window.scrollTo({ top: 0, behavior: 'auto' });
@@ -357,6 +369,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       zainCashNumber: (editSite.zainCashNumber || '').trim(),
       qiCardNumber: (editSite.qiCardNumber || '').trim(),
       paymentNote: (editSite.paymentNote || '').trim(),
+      motionConfig: editSite.motionConfig || site.motionConfig || { ...DEFAULT_MOTION_CONFIG },
       googleAuthEnabled: false,
       signupEnabled: false,
       su: 0,
@@ -406,6 +419,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       hydratedSiteSigRef.current = JSON.stringify(editSite);
       await putItemAndSync('settings/site', nextSite);
       applyTheme(buildThemeForMode(resolvedAdminMode, getTheme()));
+      syncDashboardMotionFromSite(nextSite, `/admin/${activeTab}`);
       onRefresh();
       if (notify) {
         showToast('تم حفظ التغيرات');
@@ -623,6 +637,38 @@ export const AdminView: React.FC<AdminViewProps> = ({
     showToast('تم حفظ التغيرات');
   };
 
+  const handleSaveMotionConfig = async (nextMotion: MotionSettingsConfig) => {
+    if (!isSuperAdmin && !staffPerms.canManageThemeMode && !staffPerms.canManageSettings) {
+      showToast('ليست لديك صلاحية تعديل الأنيميشن');
+      return;
+    }
+    if (siteAutoSaveTimerRef.current !== null) {
+      window.clearTimeout(siteAutoSaveTimerRef.current);
+      siteAutoSaveTimerRef.current = null;
+    }
+    const nextSite: SiteSettings = {
+      ...buildNormalizedSitePayload(),
+      motionConfig: nextMotion,
+    };
+    hydratedSiteSigRef.current = JSON.stringify(nextSite);
+    setEditSite(nextSite);
+    syncDashboardMotionFromSite(nextSite, `/admin/${activeTab}`);
+    await putItemAndSync('settings/site', nextSite);
+    const presetMeta = getMotionPresetById(nextMotion.presetId);
+    logActivity(
+      session.phone || session.email || 'المدير',
+      'تحديث أنيميشن اللوحات',
+      `${presetMeta.officialName} (${Number(nextMotion.speedMultiplier || 1).toFixed(2)}x)`,
+      'system'
+    );
+    onRefresh();
+    showToast(`تم تطبيق حركة ${presetMeta.officialName} على اللوحات`);
+  };
+
+  const handleResetMotionConfig = async () => {
+    await handleSaveMotionConfig({ ...DEFAULT_MOTION_CONFIG });
+  };
+
   const snapWeightToCatalog = (desired: number, available: number[]): number => {
     if (!available.length) return desired;
     if (available.includes(desired)) return desired;
@@ -700,6 +746,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     { id: 'notes', def: 'الملاحظات' },
     { id: 'reports', def: 'البلاغات' },
     { id: 'staff', def: 'إدارة الموظفين والصلاحيات' },
+    { id: 'animations', def: 'الأنيميشن' },
     { id: 'database', def: 'قاعدة البيانات' },
     { id: 'settings', def: 'الإعدادات' },
   ];
@@ -776,6 +823,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
       perm: isSuperAdmin || Boolean(staffPerms.canManageStaff),
     },
     {
+      id: 'animations' as const,
+      Icon: Sparkles,
+      label: customAdminLabel('animations', 'الأنيميشن'),
+      perm: isSuperAdmin || Boolean(staffPerms.canManageThemeMode || staffPerms.canManageSettings),
+    },
+    {
       id: 'database' as const,
       Icon: Database,
       label: customAdminLabel('database', 'قاعدة البيانات'),
@@ -799,6 +852,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const showBottomSaveButton =
     effectiveTab === 'home_editor' ||
     effectiveTab === 'notes' ||
+    effectiveTab === 'animations' ||
     effectiveTab === 'settings' ||
     effectiveTab === 'account';
 
@@ -807,6 +861,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
     const brandName = site.name || 'منيو بلس';
     document.title = `${titleLabel} | ${brandName}`;
   }, [activePageTitle, site.name]);
+
+  syncDashboardMotionFromSite(editSite, `/admin/${effectiveTab}`);
 
   return (
     <div className="shell admin-shell" dir="rtl">
@@ -1475,6 +1531,27 @@ export const AdminView: React.FC<AdminViewProps> = ({
             canManageStaff={isSuperAdmin || Boolean(staffPerms.canManageStaff)}
             onRefresh={onRefresh}
             showToast={showToast}
+          />
+        )}
+
+        {/* ============================================================== */}
+        {/* TAB: ANIMATIONS STUDIO & GLOBAL MOTION PRESETS (الأنيميشن)     */}
+        {/* ============================================================== */}
+        {effectiveTab === 'animations' && (
+          <AdminAnimationsSection
+            value={editSite.motionConfig}
+            pageTitle={customAdminLabel('animations', 'الأنيميشن')}
+            canEdit={isSuperAdmin || Boolean(staffPerms.canManageThemeMode || staffPerms.canManageSettings)}
+            onChange={(nextMotion) => {
+              const nextSite: SiteSettings = {
+                ...editSite,
+                motionConfig: nextMotion,
+              };
+              setEditSite(nextSite);
+              syncDashboardMotionFromSite(nextSite, `/admin/${activeTab}`);
+            }}
+            onSaveAndApply={handleSaveMotionConfig}
+            onResetDefault={handleResetMotionConfig}
           />
         )}
 

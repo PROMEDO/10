@@ -214,6 +214,13 @@ export interface SubdomainRulesConfig {
   allowHyphens?: boolean;
 }
 
+export interface MotionSettingsConfig {
+  presetId: string;
+  speedMultiplier: number; // 0.35 (slowest) to 3.0 (fastest), default 1.0
+  applyToAdmin?: boolean;
+  applyToDashboard?: boolean;
+}
+
 export interface SiteSettings {
   name: string;
   wa?: string;
@@ -238,6 +245,7 @@ export interface SiteSettings {
   zainCashNumber?: string;
   qiCardNumber?: string;
   paymentNote?: string;
+  motionConfig?: MotionSettingsConfig;
   [key: string]: any;
 }
 

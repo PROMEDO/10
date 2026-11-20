@@ -21,6 +21,7 @@ import {
   seedInitialData,
   syncFromServer,
 } from './utils/storage';
+import { syncDashboardMotionFromSite } from './utils/dashboardMotion';
 import {
   ParsedRoute,
   migrateLegacyHashToPath,
@@ -326,6 +327,7 @@ export default function App() {
       return;
     }
     applyScopedTheme(window.location.pathname);
+    syncDashboardMotionFromSite(site, window.location.pathname);
 
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
@@ -345,6 +347,7 @@ export default function App() {
     site.homeThemeMode,
     site.adminThemeMode,
     site.dashboardThemeMode,
+    site.motionConfig,
     session?.rid,
     activeDashboardThemeMode,
     theme.font,
@@ -442,6 +445,8 @@ export default function App() {
   }, []);
 
   const isStorefrontRoute = route.page === 'menu' || Boolean(subdomainRestaurantId && route.page === 'home');
+
+  syncDashboardMotionFromSite(site, route.path);
 
   return (
     <div className="min-h-screen">

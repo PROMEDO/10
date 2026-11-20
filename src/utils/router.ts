@@ -25,6 +25,7 @@ export type AdminTabId =
   | 'reports'
   | 'staff'
   | 'home_editor'
+  | 'animations'
   | 'database'
   | 'settings'
   | 'account';
@@ -83,6 +84,7 @@ const ADMIN_TABS: AdminTabId[] = [
   'reports',
   'staff',
   'home_editor',
+  'animations',
   'database',
   'settings',
   'account',

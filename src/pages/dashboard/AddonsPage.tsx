@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, useReducedMotion } from 'motion/react';
 import {
   AlertCircle,
@@ -24,12 +25,44 @@ import {
   getAddonRequiredPlanTier,
   isAddonAllowedForPlan,
 } from '../../utils/plans';
-import { playBellTone, surfaceCardStyle, themedInputStyle, useDashboard } from './DashboardContext';
+import { playBellTone, useDashboard } from './DashboardContext';
 import {
   dashCardMotion,
   dashModalMotion,
   dashSectionMotion,
 } from '../../utils/dashboardMotion';
+
+const ARABIC_WEEKDAYS = [
+  'الأحد',
+  'الإثنين',
+  'الثلاثاء',
+  'الأربعاء',
+  'الخميس',
+  'الجمعة',
+  'السبت',
+] as const;
+
+function formatArabicEndDayAndDate(timestamp: number): { weekday: string; dateTime: string } {
+  const d = new Date(timestamp);
+  const weekday = ARABIC_WEEKDAYS[d.getDay()] ?? '';
+  const datePart = d.toLocaleDateString('ar-IQ', {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+  });
+  const timePart = d.toLocaleTimeString('ar-IQ', {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+  return {
+    weekday,
+    dateTime: `${datePart} · ${timePart}`,
+  };
+}
+
+const modalInputStyle: React.CSSProperties = {
+  width: '100%',
+};
 
 function formatHourArabic(hour: number): string {
   const h = ((Math.floor(hour) % 24) + 24) % 24;
@@ -96,6 +129,29 @@ export const AddonsPage: React.FC = () => {
   const currentLocalHour = new Date().getHours();
 
   const waTargetPhone = String(rest.social?.whatsapp || rest.ph || '').trim();
+
+  const isAnyAddonModalOpen = Boolean((editingAddonKey && activeMeta) || showPopupPreview);
+
+  useEffect(() => {
+    if (!isAnyAddonModalOpen || typeof document === 'undefined') return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (showPopupPreview) {
+        setShowPopupPreview(false);
+        return;
+      }
+      if (!showOfferMediaLibrary && editingAddonKey) {
+        closeEditModal();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [isAnyAddonModalOpen, showPopupPreview, showOfferMediaLibrary, editingAddonKey]);
 
   return (
     <div style={{ maxWidth: '1120px', margin: '0 auto' }}>
@@ -226,27 +282,28 @@ export const AddonsPage: React.FC = () => {
         })}
       </div>
 
-      {/* FIXED CENTERED EDIT / SETUP ADDON POPUP MODAL */}
-      {editingAddonKey && activeMeta && (
-        <div className="mp-addon-modal-overlay" dir="rtl" onClick={closeEditModal}>
-          <motion.div
-            className="mp-addon-modal-card"
-            onClick={(e) => e.stopPropagation()}
-            {...dashModalMotion(prefersReducedMotion)}
-            style={surfaceCardStyle}
-          >
-            <form onSubmit={handleSaveAddonEdit} className="mp-addon-modal-form" noValidate>
+      {/* FIXED CENTERED EDIT / SETUP ADDON POPUP MODAL (PORTALED) */}
+      {editingAddonKey && activeMeta && typeof document !== 'undefined' &&
+        createPortal(
+          <div className="mp-addon-modal-overlay" dir="rtl" onClick={closeEditModal}>
+            <motion.div
+              className="mp-addon-modal-card"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="mp-addon-modal-title"
+              onClick={(e) => e.stopPropagation()}
+              {...dashModalMotion(prefersReducedMotion)}
+            >
+              <form onSubmit={handleSaveAddonEdit} className="mp-addon-modal-form" noValidate>
               {/* Sticky Header */}
               <div className="mp-addon-modal-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                <div className="mp-addon-modal-title-group">
                   <div className="mp-addon-modal-icon">{activeMeta.icon}</div>
-                  <div style={{ minWidth: 0 }}>
-                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 900, color: 'var(--ink)' }}>
+                  <div className="mp-addon-modal-title-text">
+                    <h3 id="mp-addon-modal-title">
                       {addonEditIntent === 'enable' ? 'إعداد وتفعيل:' : 'تعديل:'} {activeMeta.title}
                     </h3>
-                    <p style={{ margin: '2px 0 0', fontSize: '11.5px', color: 'var(--muted)' }}>
-                      {activeMeta.desc}
-                    </p>
+                    <p>{activeMeta.desc}</p>
                   </div>
                 </div>
                 <button
@@ -321,7 +378,7 @@ export const AddonsPage: React.FC = () => {
                     <>
                       <div className="f">
                         <span>نوع النافذة المنبثقة *</span>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '6px' }}>
+                        <div className="mp-addon-seg-grid">
                           <button
                             type="button"
                             onClick={() =>
@@ -398,7 +455,7 @@ export const AddonsPage: React.FC = () => {
                                       : p.image,
                                 }));
                               }}
-                              style={themedInputStyle}
+                              style={modalInputStyle}
                             >
                               <option value="">{terms.isStore ? '— اختر منتجاً من المتجر —' : '— اختر طبقاً من المنيو —'}</option>
                               {allItems.map((it) => (
@@ -409,13 +466,12 @@ export const AddonsPage: React.FC = () => {
                             </select>
                           </label>
 
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                          <div className="mp-addon-two-col">
                             <label className="f">
                               سعر العرض الخاص ({currency})
                               <input
                                 type="number"
                                 min={0}
-                                dir="ltr"
                                 value={addonDraft.specialPrice ?? ''}
                                 onChange={(e) =>
                                   updateDraft((p) => ({
@@ -424,7 +480,7 @@ export const AddonsPage: React.FC = () => {
                                   }))
                                 }
                                 placeholder={selectedDish ? String(selectedDish.pr) : 'اختياري'}
-                                style={themedInputStyle}
+                                style={modalInputStyle}
                               />
                             </label>
                             <label className="f">
@@ -434,7 +490,7 @@ export const AddonsPage: React.FC = () => {
                                 value={addonDraft.badgeText || ''}
                                 onChange={(e) => updateDraft((p) => ({ ...p, badgeText: e.target.value }))}
                                 placeholder="مثال: عرض خاص 🔥"
-                                style={themedInputStyle}
+                                style={modalInputStyle}
                               />
                             </label>
                           </div>
@@ -447,7 +503,7 @@ export const AddonsPage: React.FC = () => {
                             value={addonDraft.badgeText || ''}
                             onChange={(e) => updateDraft((p) => ({ ...p, badgeText: e.target.value }))}
                             placeholder="مثال: إعلان هام ✨"
-                            style={themedInputStyle}
+                            style={modalInputStyle}
                           />
                         </label>
                       )}
@@ -458,7 +514,7 @@ export const AddonsPage: React.FC = () => {
                           type="text"
                           value={addonDraft.title || ''}
                           onChange={(e) => updateDraft((p) => ({ ...p, title: e.target.value }))}
-                          style={themedInputStyle}
+                          style={modalInputStyle}
                           required
                         />
                       </label>
@@ -468,7 +524,7 @@ export const AddonsPage: React.FC = () => {
                           rows={2}
                           value={addonDraft.subtitle || ''}
                           onChange={(e) => updateDraft((p) => ({ ...p, subtitle: e.target.value }))}
-                          style={themedInputStyle}
+                          style={modalInputStyle}
                         />
                       </label>
                       <div className="f">
@@ -489,7 +545,7 @@ export const AddonsPage: React.FC = () => {
                             value={addonDraft.image || ''}
                             onChange={(e) => updateDraft((p) => ({ ...p, image: e.target.value }))}
                             placeholder="https://..."
-                            style={{ ...themedInputStyle, flex: 1, minWidth: '160px' }}
+                            style={{ ...modalInputStyle, flex: 1, minWidth: '160px' }}
                           />
                         </div>
                         {addonDraft.image && (
@@ -530,14 +586,13 @@ export const AddonsPage: React.FC = () => {
                           value={displayedBtnValue}
                           onChange={(e) => updateDraft((p) => ({ ...p, buttonText: e.target.value }))}
                           placeholder={popupMode === 'dish' ? 'إضافة إلى السلة' : 'إغلاق'}
-                          style={themedInputStyle}
+                          style={modalInputStyle}
                         />
                       </label>
                       <button
                         type="button"
-                        className="btn s"
+                        className="btn s mp-addon-utility-btn"
                         onClick={() => setShowPopupPreview(true)}
-                        style={{ marginBottom: '6px' }}
                       >
                         <Eye size={14} />
                         <span>معاينة شكل البوب اب للزبون</span>
@@ -568,18 +623,18 @@ export const AddonsPage: React.FC = () => {
                         type="text"
                         value={addonDraft.text || ''}
                         onChange={(e) => updateDraft((p) => ({ ...p, text: e.target.value }))}
-                        style={themedInputStyle}
+                        style={modalInputStyle}
                         required
                       />
                     </label>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div className="mp-addon-two-col">
                       <label className="f">
                         لون خلفية الشريط
                         <input
                           type="color"
                           value={addonDraft.bgColor || '#C2410C'}
                           onChange={(e) => updateDraft((p) => ({ ...p, bgColor: e.target.value }))}
-                          style={{ width: '100%', height: '40px', borderRadius: '8px', cursor: 'pointer' }}
+                          style={{ width: '100%', height: '42px', borderRadius: '10px', cursor: 'pointer' }}
                         />
                       </label>
                       <label className="f">
@@ -588,7 +643,7 @@ export const AddonsPage: React.FC = () => {
                           type="color"
                           value={addonDraft.textColor || '#ffffff'}
                           onChange={(e) => updateDraft((p) => ({ ...p, textColor: e.target.value }))}
-                          style={{ width: '100%', height: '40px', borderRadius: '8px', cursor: 'pointer' }}
+                          style={{ width: '100%', height: '42px', borderRadius: '10px', cursor: 'pointer' }}
                         />
                       </label>
                     </div>
@@ -603,16 +658,16 @@ export const AddonsPage: React.FC = () => {
                         type="text"
                         value={addonDraft.title || ''}
                         onChange={(e) => updateDraft((p) => ({ ...p, title: e.target.value }))}
-                        style={themedInputStyle}
+                        style={modalInputStyle}
                       />
                     </label>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div className="mp-addon-two-col">
                       <label className="f">
                         {terms.isStore ? 'نوع الخصم الفعلي على المتجر' : 'نوع الخصم الفعلي على المنيو'}
                         <select
                           value={addonDraft.discountType || 'percent'}
                           onChange={(e) => updateDraft((p) => ({ ...p, discountType: e.target.value }))}
-                          style={themedInputStyle}
+                          style={modalInputStyle}
                         >
                           <option value="percent">نسبة مئوية (%)</option>
                           <option value="fixed">{`مبلغ ثابت (${currency})`}</option>
@@ -630,7 +685,7 @@ export const AddonsPage: React.FC = () => {
                               discountValue: e.target.value === '' ? 0 : Math.max(0, Number(e.target.value)),
                             }))
                           }
-                          style={themedInputStyle}
+                          style={modalInputStyle}
                         />
                       </label>
                     </div>
@@ -640,7 +695,7 @@ export const AddonsPage: React.FC = () => {
                         type="text"
                         value={addonDraft.discountText || ''}
                         onChange={(e) => updateDraft((p) => ({ ...p, discountText: e.target.value }))}
-                        style={themedInputStyle}
+                        style={modalInputStyle}
                       />
                     </label>
                     <label className="f">
@@ -648,7 +703,7 @@ export const AddonsPage: React.FC = () => {
                       <select
                         value={Number(addonDraft.endHour ?? 23)}
                         onChange={(e) => updateDraft((p) => ({ ...p, endHour: Number(e.target.value) }))}
-                        style={themedInputStyle}
+                        style={modalInputStyle}
                       >
                         {Array.from({ length: 24 }).map((_, hr) => (
                           <option key={hr} value={hr}>
@@ -657,7 +712,7 @@ export const AddonsPage: React.FC = () => {
                         ))}
                       </select>
                     </label>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div className="mp-addon-two-col">
                       <label className="f">
                         {`الحد الأدنى للطلب (${currency})`}
                         <input
@@ -671,7 +726,7 @@ export const AddonsPage: React.FC = () => {
                             }))
                           }
                           placeholder="0 = لا يوجد حد أدنى"
-                          style={themedInputStyle}
+                          style={modalInputStyle}
                         />
                       </label>
                       <label className="f">
@@ -687,7 +742,7 @@ export const AddonsPage: React.FC = () => {
                             }))
                           }
                           placeholder="0 = لا يوجد حد أعلى"
-                          style={themedInputStyle}
+                          style={modalInputStyle}
                         />
                       </label>
                     </div>
@@ -719,7 +774,7 @@ export const AddonsPage: React.FC = () => {
 
                 {editingAddonKey === 'minOrder' && (
                   <>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div className="mp-addon-two-col">
                       <label className="f">
                         {`الحد الأدنى لمبلغ الطلب (${currency}) *`}
                         <input
@@ -732,7 +787,7 @@ export const AddonsPage: React.FC = () => {
                               amount: e.target.value === '' ? 0 : Math.max(0, Number(e.target.value)),
                             }))
                           }
-                          style={themedInputStyle}
+                          style={modalInputStyle}
                           required
                         />
                       </label>
@@ -749,7 +804,7 @@ export const AddonsPage: React.FC = () => {
                             }))
                           }
                           placeholder="0 = بدون حد أعلى"
-                          style={themedInputStyle}
+                          style={modalInputStyle}
                         />
                       </label>
                     </div>
@@ -759,7 +814,7 @@ export const AddonsPage: React.FC = () => {
                         type="text"
                         value={addonDraft.message || ''}
                         onChange={(e) => updateDraft((p) => ({ ...p, message: e.target.value }))}
-                        style={themedInputStyle}
+                        style={modalInputStyle}
                       />
                     </label>
                   </>
@@ -774,7 +829,7 @@ export const AddonsPage: React.FC = () => {
                       <select
                         value={addonDraft.tone || 'bell'}
                         onChange={(e) => updateDraft((p) => ({ ...p, tone: e.target.value }))}
-                        style={themedInputStyle}
+                        style={modalInputStyle}
                       >
                         <option value="bell">جرس الكاشير الكلاسيكي</option>
                         <option value="chime">رنين ناعم ثلاثي (Chime)</option>
@@ -783,9 +838,8 @@ export const AddonsPage: React.FC = () => {
                     </label>
                     <button
                       type="button"
-                      className="btn s"
+                      className="btn s mp-addon-utility-btn"
                       onClick={() => playBellTone(addonDraft.tone || 'bell')}
-                      style={{ marginBottom: '6px' }}
                     >
                       <Volume2 size={15} />
                       <span>اختبار صوت التنبيه الآن</span>
@@ -803,16 +857,16 @@ export const AddonsPage: React.FC = () => {
                         type="text"
                         value={addonDraft.title || ''}
                         onChange={(e) => updateDraft((p) => ({ ...p, title: e.target.value }))}
-                        style={themedInputStyle}
+                        style={modalInputStyle}
                       />
                     </label>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <div className="mp-addon-two-col">
                       <label className="f">
                         من الساعة
                         <select
                           value={Number(addonDraft.startHour ?? 14)}
                           onChange={(e) => updateDraft((p) => ({ ...p, startHour: Number(e.target.value) }))}
-                          style={themedInputStyle}
+                          style={modalInputStyle}
                         >
                           {Array.from({ length: 24 }).map((_, hr) => (
                             <option key={hr} value={hr}>
@@ -826,7 +880,7 @@ export const AddonsPage: React.FC = () => {
                         <select
                           value={Number(addonDraft.endHour ?? 17)}
                           onChange={(e) => updateDraft((p) => ({ ...p, endHour: Number(e.target.value) }))}
-                          style={themedInputStyle}
+                          style={modalInputStyle}
                         >
                           {Array.from({ length: 24 }).map((_, hr) => (
                             <option key={hr} value={hr}>
@@ -844,10 +898,10 @@ export const AddonsPage: React.FC = () => {
                         max={90}
                         value={addonDraft.discountPercent ?? 15}
                         onChange={(e) => updateDraft((p) => ({ ...p, discountPercent: Number(e.target.value) }))}
-                        style={themedInputStyle}
+                        style={modalInputStyle}
                       />
                     </label>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div className="mp-addon-two-col">
                       <label className="f">
                         {`الحد الأدنى للطلب (${currency})`}
                         <input
@@ -861,7 +915,7 @@ export const AddonsPage: React.FC = () => {
                             }))
                           }
                           placeholder="0 = لا يوجد حد أدنى"
-                          style={themedInputStyle}
+                          style={modalInputStyle}
                         />
                       </label>
                       <label className="f">
@@ -877,7 +931,7 @@ export const AddonsPage: React.FC = () => {
                             }))
                           }
                           placeholder="0 = لا يوجد حد أعلى"
-                          style={themedInputStyle}
+                          style={modalInputStyle}
                         />
                       </label>
                     </div>
@@ -886,7 +940,7 @@ export const AddonsPage: React.FC = () => {
                       const en = Number(addonDraft.endHour ?? 17);
                       const activeNow = s <= en ? currentLocalHour >= s && currentLocalHour < en : currentLocalHour >= s || currentLocalHour < en;
                       return (
-                        <div style={{ fontSize: '11.5px', fontWeight: 700, color: activeNow ? '#10b981' : 'var(--muted)' }}>
+                        <div style={{ fontSize: '12px', fontWeight: 700, color: activeNow ? '#10b981' : 'var(--muted)' }}>
                           {activeNow
                             ? '✓ الوقت الحالي يقع ضمن ساعة السعادة وسيطبق الخصم فوراً عند التفعيل.'
                             : `الخصم سيتفعل تلقائياً يومياً من ${formatHourArabic(s)} إلى ${formatHourArabic(en)}.`}
@@ -905,7 +959,7 @@ export const AddonsPage: React.FC = () => {
                         min={0}
                         value={addonDraft.minAmount ?? 25000}
                         onChange={(e) => updateDraft((p) => ({ ...p, minAmount: Number(e.target.value) }))}
-                        style={themedInputStyle}
+                        style={modalInputStyle}
                       />
                     </label>
                     <label className="f">
@@ -914,7 +968,7 @@ export const AddonsPage: React.FC = () => {
                         type="text"
                         value={addonDraft.giftName || ''}
                         onChange={(e) => updateDraft((p) => ({ ...p, giftName: e.target.value }))}
-                        style={themedInputStyle}
+                        style={modalInputStyle}
                         required
                       />
                     </label>
@@ -929,7 +983,7 @@ export const AddonsPage: React.FC = () => {
                         type="text"
                         value={addonDraft.title || ''}
                         onChange={(e) => updateDraft((p) => ({ ...p, title: e.target.value }))}
-                        style={themedInputStyle}
+                        style={modalInputStyle}
                       />
                     </label>
                     <label className="f">
@@ -940,7 +994,7 @@ export const AddonsPage: React.FC = () => {
                         max={8}
                         value={addonDraft.maxItems ?? 4}
                         onChange={(e) => updateDraft((p) => ({ ...p, maxItems: Number(e.target.value) }))}
-                        style={themedInputStyle}
+                        style={modalInputStyle}
                       />
                     </label>
                   </>
@@ -956,7 +1010,7 @@ export const AddonsPage: React.FC = () => {
                         type="text"
                         value={addonDraft.title || ''}
                         onChange={(e) => updateDraft((p) => ({ ...p, title: e.target.value }))}
-                        style={themedInputStyle}
+                        style={modalInputStyle}
                       />
                     </label>
                     <label className="f">
@@ -965,7 +1019,7 @@ export const AddonsPage: React.FC = () => {
                         rows={4}
                         value={addonDraft.prizesText || ''}
                         onChange={(e) => updateDraft((p) => ({ ...p, prizesText: e.target.value }))}
-                        style={themedInputStyle}
+                        style={modalInputStyle}
                       />
                     </label>
                   </>
@@ -980,7 +1034,7 @@ export const AddonsPage: React.FC = () => {
                         min={1}
                         value={addonDraft.pointsPerThousand ?? 1}
                         onChange={(e) => updateDraft((p) => ({ ...p, pointsPerThousand: Number(e.target.value) }))}
-                        style={themedInputStyle}
+                        style={modalInputStyle}
                       />
                     </label>
                     <label className="f">
@@ -989,7 +1043,7 @@ export const AddonsPage: React.FC = () => {
                         type="text"
                         value={addonDraft.rewardNote || ''}
                         onChange={(e) => updateDraft((p) => ({ ...p, rewardNote: e.target.value }))}
-                        style={themedInputStyle}
+                        style={modalInputStyle}
                       />
                     </label>
                   </>
@@ -1004,7 +1058,7 @@ export const AddonsPage: React.FC = () => {
                       type="text"
                       value={addonDraft.label || ''}
                       onChange={(e) => updateDraft((p) => ({ ...p, label: e.target.value }))}
-                      style={themedInputStyle}
+                      style={modalInputStyle}
                     />
                   </label>
                 )}
@@ -1021,7 +1075,7 @@ export const AddonsPage: React.FC = () => {
                         max={90}
                         value={addonDraft.discountPercent ?? 10}
                         onChange={(e) => updateDraft((p) => ({ ...p, discountPercent: Number(e.target.value) }))}
-                        style={themedInputStyle}
+                        style={modalInputStyle}
                       />
                     </label>
                     <label className="f">
@@ -1030,10 +1084,10 @@ export const AddonsPage: React.FC = () => {
                         type="text"
                         value={addonDraft.title || ''}
                         onChange={(e) => updateDraft((p) => ({ ...p, title: e.target.value }))}
-                        style={themedInputStyle}
+                        style={modalInputStyle}
                       />
                     </label>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div className="mp-addon-two-col">
                       <label className="f">
                         {`الحد الأدنى للطلب (${currency})`}
                         <input
@@ -1047,7 +1101,7 @@ export const AddonsPage: React.FC = () => {
                             }))
                           }
                           placeholder="0 = لا يوجد حد أدنى"
-                          style={themedInputStyle}
+                          style={modalInputStyle}
                         />
                       </label>
                       <label className="f">
@@ -1063,7 +1117,7 @@ export const AddonsPage: React.FC = () => {
                             }))
                           }
                           placeholder="0 = لا يوجد حد أعلى"
-                          style={themedInputStyle}
+                          style={modalInputStyle}
                         />
                       </label>
                     </div>
@@ -1072,7 +1126,7 @@ export const AddonsPage: React.FC = () => {
 
                 {editingAddonKey === 'freeDeliveryProgress' && (
                   <>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div className="mp-addon-two-col">
                       <label className="f">
                         {`الحد الأدنى للتوصيل المجاني (${currency})`}
                         <input
@@ -1086,7 +1140,7 @@ export const AddonsPage: React.FC = () => {
                             }))
                           }
                           placeholder="0 = لا يوجد حد أدنى"
-                          style={themedInputStyle}
+                          style={modalInputStyle}
                         />
                       </label>
                       <label className="f">
@@ -1102,7 +1156,7 @@ export const AddonsPage: React.FC = () => {
                             }))
                           }
                           placeholder="0 = لا يوجد حد أعلى"
-                          style={themedInputStyle}
+                          style={modalInputStyle}
                         />
                       </label>
                     </div>
@@ -1112,7 +1166,7 @@ export const AddonsPage: React.FC = () => {
                         type="text"
                         value={addonDraft.label || ''}
                         onChange={(e) => updateDraft((p) => ({ ...p, label: e.target.value }))}
-                        style={themedInputStyle}
+                        style={modalInputStyle}
                       />
                     </label>
                   </>
@@ -1126,7 +1180,7 @@ export const AddonsPage: React.FC = () => {
                         type="text"
                         value={addonDraft.label || ''}
                         onChange={(e) => updateDraft((p) => ({ ...p, label: e.target.value }))}
-                        style={themedInputStyle}
+                        style={modalInputStyle}
                       />
                     </label>
                     <label className="f">
@@ -1135,12 +1189,12 @@ export const AddonsPage: React.FC = () => {
                         type="text"
                         value={addonDraft.prefillText || ''}
                         onChange={(e) => updateDraft((p) => ({ ...p, prefillText: e.target.value }))}
-                        style={themedInputStyle}
+                        style={modalInputStyle}
                       />
                     </label>
                     <div
                       style={{
-                        padding: '9px 12px',
+                        padding: '10px 12px',
                         borderRadius: '10px',
                         fontSize: '12px',
                         fontWeight: 700,
@@ -1167,7 +1221,7 @@ export const AddonsPage: React.FC = () => {
                       max={30}
                       value={addonDraft.maxPeople ?? 10}
                       onChange={(e) => updateDraft((p) => ({ ...p, maxPeople: Number(e.target.value) }))}
-                      style={themedInputStyle}
+                      style={modalInputStyle}
                     />
                   </label>
                 )}
@@ -1182,7 +1236,7 @@ export const AddonsPage: React.FC = () => {
                         type="text"
                         value={addonDraft.title || ''}
                         onChange={(e) => updateDraft((p) => ({ ...p, title: e.target.value }))}
-                        style={themedInputStyle}
+                        style={modalInputStyle}
                       />
                     </label>
                     <label className="f">
@@ -1193,10 +1247,10 @@ export const AddonsPage: React.FC = () => {
                         max={60}
                         value={addonDraft.discountPercent ?? 10}
                         onChange={(e) => updateDraft((p) => ({ ...p, discountPercent: Number(e.target.value) }))}
-                        style={themedInputStyle}
+                        style={modalInputStyle}
                       />
                     </label>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div className="mp-addon-two-col">
                       <label className="f">
                         {`الحد الأدنى للطلب (${currency})`}
                         <input
@@ -1210,7 +1264,7 @@ export const AddonsPage: React.FC = () => {
                             }))
                           }
                           placeholder="0 = لا يوجد حد أدنى"
-                          style={themedInputStyle}
+                          style={modalInputStyle}
                         />
                       </label>
                       <label className="f">
@@ -1226,7 +1280,7 @@ export const AddonsPage: React.FC = () => {
                             }))
                           }
                           placeholder="0 = لا يوجد حد أعلى"
-                          style={themedInputStyle}
+                          style={modalInputStyle}
                         />
                       </label>
                     </div>
@@ -1236,7 +1290,14 @@ export const AddonsPage: React.FC = () => {
                 {editingAddonKey === 'limitedTimeDiscount' && (() => {
                   const selectedDays = Math.max(1, Number(addonDraft.durationDays ?? 1) || 1);
                   const expiresAt = Number(addonDraft.expiresAt || 0);
+                  const activeDurationDays = Math.max(1, Number(activeSavedCfg.durationDays || 1) || 1);
                   const isActiveWindow = Boolean(addonDraft.enabled && expiresAt > Date.now());
+                  const isUsingExistingWindow = isActiveWindow && selectedDays === activeDurationDays;
+                  const targetEndTs = isUsingExistingWindow
+                    ? expiresAt
+                    : Date.now() + selectedDays * 86400000;
+                  const endInfo = formatArabicEndDayAndDate(targetEndTs);
+
                   return (
                     <>
                       <label className="f">
@@ -1253,12 +1314,12 @@ export const AddonsPage: React.FC = () => {
                             }))
                           }
                           placeholder="15"
-                          style={themedInputStyle}
+                          style={modalInputStyle}
                           required
                         />
                       </label>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <div className="mp-addon-two-col">
                         <label className="f">
                           {`الحد الأدنى للطلب (${currency})`}
                           <input
@@ -1272,7 +1333,7 @@ export const AddonsPage: React.FC = () => {
                               }))
                             }
                             placeholder="0 = لا يوجد حد أدنى"
-                            style={themedInputStyle}
+                            style={modalInputStyle}
                           />
                         </label>
                         <label className="f">
@@ -1288,14 +1349,14 @@ export const AddonsPage: React.FC = () => {
                               }))
                             }
                             placeholder="0 = لا يوجد حد أعلى"
-                            style={themedInputStyle}
+                            style={modalInputStyle}
                           />
                         </label>
                       </div>
 
-                      <div className="f" style={{ marginBottom: 0 }}>
+                      <div className="f">
                         <span>المدة (تختارها للإدارة فقط ولا تظهر للزبائن)</span>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px', marginTop: '6px', marginBottom: '8px' }}>
+                        <div className="mp-addon-seg-grid" style={{ marginBottom: '4px' }}>
                           {[
                             { days: 1, label: 'يوم واحد (24 ساعة)' },
                             { days: 2, label: 'يومين (48 ساعة)' },
@@ -1330,28 +1391,19 @@ export const AddonsPage: React.FC = () => {
                             }))
                           }
                           placeholder="أدخل عدد الأيام (مثال: 1 أو 2)"
-                          style={themedInputStyle}
+                          style={modalInputStyle}
                         />
                       </div>
 
-                      <div
-                        style={{
-                          padding: '10px 12px',
-                          borderRadius: '10px',
-                          fontSize: '12px',
-                          fontWeight: 700,
-                          background: 'rgba(16, 185, 129, 0.08)',
-                          border: '1px solid rgba(16, 185, 129, 0.22)',
-                          color: 'var(--ink)',
-                          lineHeight: 1.55,
-                        }}
-                      >
-                        يُطبق الخصم تلقائياً على أسعار القائمة وينتهي بعد انتهاء المدة المختارة دون عرض أي عدّاد أو تاريخ انتهاء للزبائن.
-                        {isActiveWindow && (
-                          <div style={{ marginTop: '4px', color: '#10b981' }}>
-                            الحالة: نشط حالياً وينتهي في {new Date(expiresAt).toLocaleString('ar-IQ')}
-                          </div>
-                        )}
+                      <div className="mp-addon-info-note">
+                        <div>
+                          يُطبق الخصم تلقائياً على أسعار القائمة وينتهي بعد انتهاء المدة المختارة دون عرض أي عدّاد أو تاريخ انتهاء للزبائن.
+                        </div>
+                        <div className="mp-addon-endday-badge">
+                          {isUsingExistingWindow
+                            ? `الحالة: نشط حالياً وينتهي يوم ${endInfo.weekday} (${endInfo.dateTime})`
+                            : `سينتهي الخصم يوم ${endInfo.weekday} (${endInfo.dateTime})`}
+                        </div>
                       </div>
                     </>
                   );
@@ -1360,14 +1412,14 @@ export const AddonsPage: React.FC = () => {
 
 
                 {editingAddonKey === 'moodMealFinder' && (
-                  <div className="mp-grid-2">
+                  <div className="mp-addon-two-col">
                     <label className="f">
                       {terms.isStore ? 'عنوان نافذة مستشار التسوق الذكي' : 'عنوان نافذة اختيار المزاج'}
                       <input
                         type="text"
                         value={addonDraft.title || ''}
                         onChange={(e) => updateDraft((p) => ({ ...p, title: e.target.value }))}
-                        style={themedInputStyle}
+                        style={modalInputStyle}
                       />
                     </label>
                     <label className="f">
@@ -1376,7 +1428,7 @@ export const AddonsPage: React.FC = () => {
                         type="text"
                         value={addonDraft.buttonText || ''}
                         onChange={(e) => updateDraft((p) => ({ ...p, buttonText: e.target.value }))}
-                        style={themedInputStyle}
+                        style={modalInputStyle}
                       />
                     </label>
                   </div>
@@ -1392,10 +1444,10 @@ export const AddonsPage: React.FC = () => {
                         type="text"
                         value={addonDraft.instructions || ''}
                         onChange={(e) => updateDraft((p) => ({ ...p, instructions: e.target.value }))}
-                        style={themedInputStyle}
+                        style={modalInputStyle}
                       />
                     </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', color: 'var(--ink)' }}>
+                    <label className="mp-addon-check-row" style={{ marginBottom: 0 }}>
                       <input
                         type="checkbox"
                         checked={addonDraft.allowArrivedPing !== false}
@@ -1417,16 +1469,16 @@ export const AddonsPage: React.FC = () => {
               <div className="mp-addon-modal-footer">
                 {addonEditIntent === 'enable' ? (
                   <>
-                    <button type="button" className="btn" onClick={closeEditModal} disabled={addonSaving}>
+                    <button type="button" className="btn mp-addon-footer-btn" onClick={closeEditModal} disabled={addonSaving}>
                       إلغاء
                     </button>
-                    <button type="submit" className="btn p" disabled={addonSaving} style={{ fontWeight: 800 }}>
+                    <button type="submit" className="btn p mp-addon-footer-btn" disabled={addonSaving}>
                       <CheckCircle2 size={15} />
                       <span>{addonSaving ? 'جاري التفعيل...' : 'تفعيل الإضافة الآن'}</span>
                     </button>
                   </>
                 ) : (
-                  <button type="button" className="btn p" onClick={closeEditModal} style={{ fontWeight: 800 }}>
+                  <button type="button" className="btn p mp-addon-footer-btn" onClick={closeEditModal}>
                     <CheckCircle2 size={15} />
                     <span>تم — إغلاق</span>
                   </button>
@@ -1434,11 +1486,12 @@ export const AddonsPage: React.FC = () => {
               </div>
             </form>
           </motion.div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {/* CENTERED OFFER POPUP PREVIEW */}
-      {showPopupPreview && (() => {
+      {/* CENTERED OFFER POPUP PREVIEW (PORTALED) */}
+      {showPopupPreview && typeof document !== 'undefined' && (() => {
         const previewMode = (addonDraft.mode || addonsState.offerPopup?.mode) === 'dish' ? 'dish' : 'ad';
         const previewImg = addonDraft.image || addonsState.offerPopup?.image;
         const previewBadge = addonDraft.badgeText || addonsState.offerPopup?.badgeText;
@@ -1460,23 +1513,23 @@ export const AddonsPage: React.FC = () => {
             ? 'إغلاق'
             : rawBtn;
 
-        return (
+        return createPortal(
           <div
             className="mp-addon-modal-overlay"
             dir="rtl"
-            style={{ zIndex: 100100 }}
+            style={{ zIndex: 100120 }}
             onClick={() => setShowPopupPreview(false)}
           >
             <motion.div
+              className="mp-addon-preview-card"
               onClick={(e) => e.stopPropagation()}
               {...dashModalMotion(prefersReducedMotion)}
               style={{
                 position: 'relative',
                 width: 'min(410px, 92vw)',
-                maxHeight: '88vh',
+                maxHeight: '88dvh',
                 display: 'flex',
                 flexDirection: 'column',
-                ...surfaceCardStyle,
                 borderRadius: '24px',
                 overflow: 'hidden',
                 boxShadow: '0 26px 64px rgba(0,0,0,0.42)',
@@ -1656,7 +1709,8 @@ export const AddonsPage: React.FC = () => {
                 </div>
               </div>
             </motion.div>
-          </div>
+          </div>,
+          document.body
         );
       })()}
 

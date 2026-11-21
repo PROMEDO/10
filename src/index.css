@@ -16758,7 +16758,6 @@ html[data-theme] [data-home-theme="dark"] .mp-auth-glass-card select option {
 }
 
 .mp-acc-mobile-list {
-  display: flex;
   flex-direction: column;
   gap: 10px;
 }

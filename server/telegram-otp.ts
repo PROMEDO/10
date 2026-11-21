@@ -1708,7 +1708,9 @@ export function formatOrderTelegramMessage(
     (lat !== 0 || lng !== 0)
   ) {
     const googleMapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
-    customerBlock.push(`📍 <b>الموقع:</b> <a href="${escapeHtml(googleMapsUrl)}">${escapeHtml(googleMapsUrl)}</a>`);
+    const wazeUrl = `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`;
+    customerBlock.push(`📍 <b>خرائط جوجل:</b> <a href="${escapeHtml(googleMapsUrl)}">${escapeHtml(googleMapsUrl)}</a>`);
+    customerBlock.push(`🚗 <b>ويز (Waze):</b> <a href="${escapeHtml(wazeUrl)}">${escapeHtml(wazeUrl)}</a>`);
   }
   if (customerBlock.length > 0) {
     lines.push('');

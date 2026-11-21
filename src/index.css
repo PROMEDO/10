@@ -9961,37 +9961,107 @@ html[data-theme="dark"] .mp-items-count-box {
   }
 }
 
-/* ===== Multi-Branch Topbar Switchers ===== */
-.mp-topbar-branch-switch {
-  display: inline-flex;
+/* ===== Unified Sidebar Store & Branch Switcher ===== */
+.mp-sb-header-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.sb .lg .mp-sb-header-stack {
+  margin-bottom: 0;
+}
+
+.mp-sb-store-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 9px 11px;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand) 24%, var(--line));
+  text-align: start;
+}
+
+.mp-sb-store-row {
+  display: flex;
   align-items: center;
-  gap: 6px;
-  background: var(--soft);
-  border: 1px solid color-mix(in srgb, var(--brand) 36%, var(--line));
-  border-radius: 10px;
-  padding: 0 9px;
-  height: 32px;
-  max-width: 190px;
+  gap: 7px;
   min-width: 0;
 }
 
-.mp-topbar-branch-switch select {
-  background: transparent;
-  border: 0;
-  outline: none;
-  color: var(--ink);
-  font-size: 12px;
+.mp-sb-store-ico {
+  color: var(--brand-ink, #34D399);
+  flex-shrink: 0;
+}
+
+.mp-sb-store-name {
+  font-size: 13px;
   font-weight: 800;
-  cursor: pointer;
-  padding: 0;
-  min-width: 0;
-  max-width: 145px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.mp-topbar-branch-switch select option {
-  background: var(--surface);
-  color: var(--ink);
+.mp-sb-store-plan {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  padding-inline-start: 21px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mp-sb-branch-card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 10px;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--panel, var(--surface)) 78%, transparent);
+  border: 1px solid var(--line);
+  text-align: start;
+}
+
+.mp-sb-branch-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted);
+  margin: 0;
+}
+
+.mp-sb-branch-ico {
+  color: var(--brand-ink, #34D399);
+  flex-shrink: 0;
+}
+
+.mp-sb-branch-select {
+  width: 100%;
+  min-height: 36px !important;
+  height: 36px;
+  padding: 0 10px 0 30px !important;
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+  border-radius: 9px !important;
+  background-color: var(--surface) !important;
+  border: 1px solid var(--line) !important;
+  color: var(--ink) !important;
+}
+
+html[data-theme="dark"] .mp-sb-branch-select {
+  background-color: #0f1419 !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+}
+
+html[data-theme="light"] .mp-sb-branch-select {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
 }
 
 .pm-branch-pill {
@@ -10004,18 +10074,6 @@ html[data-theme="dark"] .mp-items-count-box {
 }
 
 @media (max-width: 640px) {
-  .mp-topbar-branch-switch {
-    max-width: 132px;
-    height: 30px;
-    padding: 0 7px;
-    gap: 4px;
-  }
-
-  .mp-topbar-branch-switch select {
-    font-size: 11px;
-    max-width: 98px;
-  }
-
   .pm-branch-pill {
     max-width: none;
     padding-inline: 9px !important;

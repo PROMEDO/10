@@ -29,7 +29,6 @@ import {
   parsePathRoute,
 } from './utils/router';
 import { detectClientSubdomain } from './utils/businessDefaults';
-import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { checkAndNotifyPendingOrders, unlockBellAudio } from './utils/orderBell';
 
 const HomeView = lazy(() => import('./pages/Home').then((m) => ({ default: m.HomeView })));
@@ -644,8 +643,6 @@ export default function App() {
           );
         })()}
       </Suspense>
-
-      <PWAInstallPrompt />
     </div>
   );
 }

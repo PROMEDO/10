@@ -1781,7 +1781,8 @@ const PublicMenuContent: React.FC<PublicMenuContentProps> = ({
       if (cu.n) customerBlock.push(`الزبون: ${cu.n}`);
       if (cu.ph) customerBlock.push(`الهاتف: ${cu.ph}`);
       if (orderType === 'delivery' && gpsCoords) {
-        customerBlock.push(`📍 الموقع: https://www.google.com/maps?q=${gpsCoords.lat},${gpsCoords.lng}`);
+        customerBlock.push(`📍 خرائط جوجل: https://www.google.com/maps?q=${gpsCoords.lat},${gpsCoords.lng}`);
+        customerBlock.push(`🚗 ويز (Waze): https://waze.com/ul?ll=${gpsCoords.lat},${gpsCoords.lng}&navigate=yes`);
       }
       if (customerBlock.length > 0) {
         lines.push('', ...customerBlock);

@@ -140,37 +140,32 @@ const DashboardShell: React.FC = () => {
     (activeTab === 'qr' && resolvedPlan.perms.qrCode) ||
     (activeTab === 'menu' && isItemEditorOpen && Boolean(editingItemId));
 
-  const renderBranchSwitcher = () => {
+  const renderStoreSummaryCard = (compact?: boolean) => (
+    <div className={`mp-sb-store-card ${compact ? 'is-compact' : ''}`}>
+      <div className="mp-sb-store-row">
+        <Store size={14} className="mp-sb-store-ico" />
+        <span className="mp-sb-store-name" title={rest.n}>
+          {rest.n}
+        </span>
+      </div>
+      <div className="mp-sb-store-plan">{localizedPlanTitle}</div>
+    </div>
+  );
+
+  const renderBranchSwitcher = (scope: 'desktop' | 'drawer') => {
     if (branchesList.length === 0) return null;
+    const selectId = `mp-sb-branch-select-${scope}`;
     return (
-      <div style={{ marginTop: '10px' }}>
-        <label
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '5px',
-            fontSize: '11px',
-            fontWeight: 800,
-            color: 'var(--muted)',
-            marginBottom: '4px',
-          }}
-        >
-          <GitBranch size={12} style={{ color: 'var(--brand-ink, #34D399)' }} />
-          <span>الفرع النشط:</span>
+      <div className="mp-sb-branch-card">
+        <label className="mp-sb-branch-label" htmlFor={selectId}>
+          <GitBranch size={13} className="mp-sb-branch-ico" />
+          <span>الفرع النشط</span>
         </label>
         <select
+          id={selectId}
+          className="mp-sb-branch-select"
           value={activeRid}
           onChange={(e) => switchActiveBranch(e.target.value)}
-          style={{
-            fontSize: '12px',
-            fontWeight: 700,
-            padding: '6px 10px',
-            minHeight: '34px',
-            borderRadius: '9px',
-            background: 'color-mix(in srgb, var(--panel) 88%, transparent)',
-            border: '1px solid var(--line)',
-            color: 'var(--ink)',
-          }}
         >
           <option value={mainRid}>
             {mainRest.n} (الرئيسي)
@@ -273,36 +268,10 @@ const DashboardShell: React.FC = () => {
             </div>
 
             <div style={{ padding: '12px 10px 18px', overflowY: 'auto', flex: 1 }}>
-              <div
-                style={{
-                  padding: '8px 11px',
-                  background: 'color-mix(in srgb, var(--brand) 10%, transparent)',
-                  border: '1px solid color-mix(in srgb, var(--brand) 20%, transparent)',
-                  borderRadius: '11px',
-                  fontSize: '12px',
-                  fontWeight: 700,
-                  color: 'var(--brand-ink, #34D399)',
-                  marginBottom: '12px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '8px',
-                }}
-              >
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
-                  <Store size={14} style={{ flexShrink: 0 }} />
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--ink)' }}>
-                    {rest.n}
-                  </span>
-                </span>
-                <span style={{ fontSize: '10.5px', fontWeight: 700, flexShrink: 0 }}>
-                  {localizedPlanTitle}
-                </span>
+              <div className="mp-sb-header-stack">
+                {renderStoreSummaryCard(true)}
+                {renderBranchSwitcher('drawer')}
               </div>
-
-              {branchesList.length > 0 && (
-                <div style={{ marginBottom: '12px' }}>{renderBranchSwitcher()}</div>
-              )}
 
               <nav style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                 {orderedTabs.map((tab) => {
@@ -357,31 +326,10 @@ const DashboardShell: React.FC = () => {
             <AppLogo size={36} />
           </button>
 
-          <div
-            style={{
-              marginTop: '6px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '3px 10px',
-              borderRadius: '16px',
-              background: 'var(--soft)',
-              color: 'var(--brand-ink, #34D399)',
-              fontSize: '12px',
-              fontWeight: 'bold',
-              maxWidth: '100%',
-            }}
-          >
-            <Store size={13} style={{ flexShrink: 0 }} />
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {rest.n}
-            </span>
+          <div className="mp-sb-header-stack" style={{ marginTop: '10px' }}>
+            {renderStoreSummaryCard()}
+            {renderBranchSwitcher('desktop')}
           </div>
-          <small style={{ marginTop: '4px', paddingInlineStart: '2px' }}>
-            {localizedPlanTitle}
-          </small>
-
-          {renderBranchSwitcher()}
         </div>
 
         <nav>
@@ -446,24 +394,6 @@ const DashboardShell: React.FC = () => {
             <span style={{ fontWeight: 700, fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {activeTabTitle}
             </span>
-
-            {branchesList.length > 0 && (
-              <div className="mp-topbar-branch-switch" title="تبديل الفرع للتعديل">
-                <GitBranch size={13} style={{ color: 'var(--brand-ink, #34D399)', flexShrink: 0 }} />
-                <select
-                  aria-label="تبديل الفرع"
-                  value={activeRid}
-                  onChange={(e) => switchActiveBranch(e.target.value)}
-                >
-                  <option value={mainRid}>الفرع الرئيسي</option>
-                  {branchesList.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.branchName || b.n}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
           </div>
 
           <div className="mp-dash-topbar-actions">

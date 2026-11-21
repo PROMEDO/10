@@ -51,6 +51,7 @@ import type { ActiveMenuDiscount } from '../../data/addonsCatalog';
 import type { CategoryAvailabilityResult, ItemAvailabilityResult } from '../../utils/availability';
 import { formatNumber, waLink } from '../../utils/storage';
 import { AppLogo } from '../AppLogo';
+import { MenuPromoTickets, type MenuPromoTicketItem } from '../menu/MenuPromoTickets';
 
 export interface EstorePriceInfo {
   main: string;
@@ -110,6 +111,7 @@ export interface EstoreStorefrontProps {
   onNavigate: (hash: string) => void;
   selectedCatId?: string;
   onSelectCatId?: (catId: string) => void;
+  promoTickets?: MenuPromoTicketItem[];
 }
 
 type StorePageId =
@@ -157,6 +159,7 @@ export const EstoreStorefront: React.FC<EstoreStorefrontProps> = ({
   freeDeliveryPct,
   qualifiesFreeDelivery,
   getItemCartQty,
+  promoTickets = [],
   isDisplayOnlyItem,
   openProductModal,
   quickAddOrOpenModal,
@@ -1046,6 +1049,13 @@ export const EstoreStorefront: React.FC<EstoreStorefrontProps> = ({
                   )}
                 </div>
               </section>
+            )}
+
+            {/* PROMO TICKETS STRIP (Only shown when corresponding addons are active) */}
+            {promoTickets.length > 0 && (
+              <div className="mp-bg-container" style={{ paddingTop: '14px' }}>
+                <MenuPromoTickets tickets={promoTickets} isLightSurface />
+              </div>
             )}
 
             {/* CATEGORIES SHOWCASE (الأقسام) */}

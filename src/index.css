@@ -11699,106 +11699,422 @@ html[data-theme] [data-home-theme="dark"] .mp-auth-glass-card select option {
   gap: 4px;
 }
 
-/* Notched Coupon & Offer Tickets */
-.pm-toters-tickets-strip {
+/* Menu Top Promo Tickets & Interactive Bottom Sheets */
+.mp-promo-strip {
   display: flex;
   align-items: stretch;
   gap: 10px;
   overflow-x: auto;
   scrollbar-width: none;
-  padding: 4px 2px 10px;
-  margin-bottom: 6px;
+  padding: 6px 2px 12px;
+  margin: 4px 0 6px;
 }
 
-.pm-toters-tickets-strip::-webkit-scrollbar {
+.mp-promo-strip::-webkit-scrollbar {
   display: none;
 }
 
-.pm-toters-ticket {
+.mp-promo-ticket {
+  --mp-ticket-bg: #ffffff;
+  --mp-ticket-border: rgba(15, 23, 42, 0.08);
+  --mp-ticket-ink: #111827;
+  --mp-ticket-muted: #7b8491;
+  --mp-ticket-divider: rgba(148, 163, 184, 0.42);
+  --mp-ticket-notch: var(--pm-bg, #f8fafc);
   position: relative;
   overflow: hidden;
-  flex-shrink: 0;
-  min-width: 152px;
-  max-width: 196px;
+  flex: 0 0 156px;
+  min-width: 156px;
+  max-width: 184px;
+  min-height: 124px;
   padding: 12px 12px 10px;
   border-radius: 16px;
-  border: 1px solid var(--pm-line);
-  background: var(--pm-card);
+  border: 1px solid var(--mp-ticket-border);
+  background: var(--mp-ticket-bg);
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: flex-start;
   gap: 3px;
   font-family: inherit;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
-  transition: transform 0.15s ease, border-color 0.15s ease;
+  cursor: pointer;
+  box-shadow: 0 3px 14px rgba(15, 23, 42, 0.06);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
 }
 
-.pm-page.pm-light .pm-toters-ticket {
-  box-shadow: 0 3px 12px rgba(15, 23, 42, 0.06);
+.mp-promo-ticket.is-dark {
+  --mp-ticket-bg: var(--pm-card, #141720);
+  --mp-ticket-border: var(--pm-line, rgba(255, 255, 255, 0.12));
+  --mp-ticket-ink: var(--pm-ink, #f8fafc);
+  --mp-ticket-muted: var(--pm-muted, #94a3b8);
+  --mp-ticket-divider: rgba(255, 255, 255, 0.16);
+  --mp-ticket-notch: var(--pm-bg, #0d0f14);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
 }
 
-.pm-toters-ticket:hover {
+.mp-promo-ticket:hover {
   transform: translateY(-1px);
-  border-color: var(--pm-brand);
+  border-color: rgba(0, 182, 122, 0.45);
 }
 
-.pm-toters-ticket-icon {
-  width: 24px;
-  height: 24px;
+.mp-promo-ticket:active {
+  transform: scale(0.985);
+}
+
+.mp-promo-ticket-badge {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+  flex-shrink: 0;
+}
+
+.mp-promo-ticket-eyebrow {
+  position: relative;
+  z-index: 2;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--mp-ticket-muted);
+  line-height: 1.35;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mp-promo-ticket-title {
+  position: relative;
+  z-index: 2;
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--mp-ticket-ink);
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.mp-promo-ticket-divider {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 1px;
+  border-top: 1px dashed var(--mp-ticket-divider);
+  margin: auto 0 4px;
+  padding-top: 2px;
+}
+
+.mp-promo-ticket-divider::before,
+.mp-promo-ticket-divider::after {
+  content: '';
+  position: absolute;
+  top: -7.5px;
+  width: 13px;
+  height: 13px;
   border-radius: 50%;
-  color: #ffffff;
-  display: inline-grid;
-  place-items: center;
-  margin-bottom: 2px;
+  background: var(--mp-ticket-notch);
+  border: 1px solid var(--mp-ticket-border);
 }
 
-.pm-toters-ticket-eyebrow {
-  font-size: 10.5px;
+.mp-promo-ticket-divider::before {
+  inset-inline-start: -19px;
+}
+
+.mp-promo-ticket-divider::after {
+  inset-inline-end: -19px;
+}
+
+.mp-promo-ticket-footer {
+  position: relative;
+  z-index: 2;
+  font-size: 11px;
   font-weight: 600;
-  color: var(--pm-muted);
+  color: var(--mp-ticket-muted);
   line-height: 1.3;
 }
 
-.pm-toters-ticket-title {
+.mp-promo-ticket-footer.is-unlocked {
+  color: #059669;
+  font-weight: 800;
+}
+
+.mp-promo-ticket.is-loyalty {
+  background: linear-gradient(180deg, #f8fdfb 0%, #effaf6 100%);
+  border-color: rgba(0, 182, 122, 0.14);
+}
+
+.mp-promo-ticket.is-dark.is-loyalty {
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.09) 0%, rgba(16, 185, 129, 0.16) 100%);
+  border-color: rgba(52, 211, 153, 0.22);
+}
+
+.mp-promo-loyalty-wave {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  width: 100%;
+  height: 36px;
+  color: #e4f6ef;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.mp-promo-ticket.is-dark .mp-promo-loyalty-wave {
+  color: rgba(16, 185, 129, 0.15);
+}
+
+.mp-promo-loyalty-ornament {
+  position: absolute;
+  inset-inline-end: 6px;
+  bottom: -4px;
+  width: 48px;
+  height: 44px;
+  opacity: 0.9;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Promo Detail Bottom Sheet Modal */
+.mp-promo-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(15, 23, 42, 0.56);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: mpPromoFadeIn 0.18s ease-out;
+}
+
+.mp-promo-sheet {
+  --mp-sheet-bg: #ffffff;
+  --mp-sheet-card: #ffffff;
+  --mp-sheet-border: rgba(15, 23, 42, 0.08);
+  --mp-sheet-ink: #111827;
+  --mp-sheet-muted: #64748b;
+  --mp-sheet-divider: rgba(148, 163, 184, 0.42);
+  width: 100%;
+  max-width: 480px;
+  background: var(--mp-sheet-bg);
+  color: var(--mp-sheet-ink);
+  border-radius: 26px 26px 0 0;
+  padding: 10px 18px calc(20px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -10px 36px rgba(15, 23, 42, 0.18);
+  text-align: center;
+  animation: mpPromoSheetUp 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.mp-promo-sheet.is-dark {
+  --mp-sheet-bg: var(--pm-card, #141720);
+  --mp-sheet-card: var(--pm-surface-soft, #1c202d);
+  --mp-sheet-border: var(--pm-line, rgba(255, 255, 255, 0.12));
+  --mp-sheet-ink: var(--pm-ink, #f8fafc);
+  --mp-sheet-muted: var(--pm-muted, #94a3b8);
+  --mp-sheet-divider: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.48);
+}
+
+.mp-promo-sheet-handle {
+  width: 38px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.45);
+  margin: 0 auto 14px;
+}
+
+.mp-promo-sheet-hero {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.mp-promo-sheet-title {
+  margin: 0 0 16px;
+  font-size: 21px;
+  font-weight: 900;
+  color: var(--mp-sheet-ink);
+  line-height: 1.3;
+}
+
+.mp-promo-sheet-ticket-box {
+  position: relative;
+  overflow: hidden;
+  border-radius: 18px;
+  background: var(--mp-sheet-card);
+  border: 1px solid var(--mp-sheet-border);
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+  margin-bottom: 18px;
+  padding: 16px 14px 13px;
+}
+
+.mp-promo-sheet-ticket-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+.mp-promo-sheet-ticket-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 2px 6px;
+  position: relative;
+}
+
+.mp-promo-sheet-ticket-cell:first-child::after {
+  content: '';
+  position: absolute;
+  inset-inline-end: -4px;
+  top: 4px;
+  bottom: 4px;
+  width: 1px;
+  background: var(--mp-sheet-border);
+}
+
+.mp-promo-sheet-cell-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--mp-sheet-muted);
+}
+
+.mp-promo-sheet-cell-val {
   font-size: 13.5px;
   font-weight: 900;
-  color: var(--pm-ink);
-  line-height: 1.3;
+  color: var(--mp-sheet-ink);
 }
 
-.pm-toters-ticket-divider {
+.mp-promo-sheet-ticket-divider {
+  display: block;
   position: relative;
   width: 100%;
   height: 1px;
-  border-top: 1px dashed var(--pm-line);
-  margin: 7px 0 4px;
+  border-top: 1px dashed var(--mp-sheet-divider);
+  margin: 14px 0 11px;
 }
 
-.pm-toters-ticket-divider::before,
-.pm-toters-ticket-divider::after {
+.mp-promo-sheet-ticket-divider::before,
+.mp-promo-sheet-ticket-divider::after {
   content: '';
   position: absolute;
-  top: -6.5px;
-  width: 12px;
-  height: 12px;
+  top: -8px;
+  width: 15px;
+  height: 15px;
   border-radius: 50%;
-  background: var(--pm-bg);
-  border: 1px solid var(--pm-line);
+  background: var(--mp-sheet-bg);
+  border: 1px solid var(--mp-sheet-border);
 }
 
-.pm-toters-ticket-divider::before {
-  inset-inline-start: -18px;
+.mp-promo-sheet-ticket-divider::before {
+  inset-inline-start: -22px;
 }
 
-.pm-toters-ticket-divider::after {
-  inset-inline-end: -18px;
+.mp-promo-sheet-ticket-divider::after {
+  inset-inline-end: -22px;
 }
 
-.pm-toters-ticket-footer {
-  font-size: 11px;
+.mp-promo-sheet-ticket-footer {
+  font-size: 13px;
   font-weight: 700;
-  color: var(--pm-muted);
+  color: var(--mp-sheet-muted);
+}
+
+.mp-promo-sheet-ticket-footer.is-unlocked {
+  color: #059669;
+  font-weight: 800;
+}
+
+.mp-promo-sheet-loyalty-box {
+  border-radius: 18px;
+  background: var(--mp-sheet-card);
+  border: 1px solid var(--mp-sheet-border);
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+  margin-bottom: 18px;
+  padding: 18px 16px;
+}
+
+.mp-promo-sheet-loyalty-note {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--mp-sheet-ink);
+  line-height: 1.55;
+}
+
+.mp-promo-sheet-loyalty-meta {
+  margin: 8px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--mp-sheet-muted);
+}
+
+.mp-promo-sheet-cta {
+  width: 100%;
+  height: 48px;
+  border: 0;
+  border-radius: 14px;
+  background: #00b67a;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 15.5px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background-color 0.16s ease, transform 0.14s ease;
+}
+
+.mp-promo-sheet-cta:hover {
+  background: #009e69;
+}
+
+.mp-promo-sheet-cta:active {
+  transform: scale(0.99);
+}
+
+@media (min-width: 640px) {
+  .mp-promo-sheet-backdrop {
+    align-items: center;
+    padding: 16px;
+  }
+
+  .mp-promo-sheet {
+    border-radius: 26px;
+    padding: 12px 22px 22px;
+  }
+}
+
+@keyframes mpPromoFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes mpPromoSheetUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mp-promo-sheet-backdrop,
+  .mp-promo-sheet {
+    animation: none;
+  }
+  .mp-promo-ticket {
+    transition: none;
+  }
 }
 
 /* Horizontal Shelves ("اطلب مجدداً" & "شائع") */

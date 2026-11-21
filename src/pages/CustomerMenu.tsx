@@ -72,6 +72,7 @@ import { ensureRestaurantDefaults } from '../utils/businessDefaults';
 import { getBusinessTerms } from '../utils/terminology';
 import { AppLogo } from '../components/AppLogo';
 import { SeasonalHeroRibbon, SeasonalMenuOverlay } from '../components/SeasonalMenuDecor';
+import { MenuPromoTickets, buildMenuPromoTickets } from '../components/menu/MenuPromoTickets';
 
 const ShareMenuModal = lazy(() =>
   import('../components/ShareMenuModal').then((m) => ({ default: m.ShareMenuModal }))
@@ -1121,7 +1122,7 @@ const PublicMenuContent: React.FC<PublicMenuContentProps> = ({
   const spinFreeDelivery = Boolean(addons.spinWheelPromo?.enabled && spinWonReward?.freeDelivery);
   const qualifiesFreeDelivery =
     orderType === 'delivery' &&
-    ((freeDeliveryEnabled && freeDeliveryMin > 0 && subtotal >= freeDeliveryMin) || spinFreeDelivery);
+    ((freeDeliveryEnabled && (freeDeliveryMin === 0 || subtotal >= freeDeliveryMin)) || spinFreeDelivery);
   const effectiveDeliveryFee = qualifiesFreeDelivery ? 0 : rawDeliveryFee;
 
   // First-order discount & Spin wheel percent discount
@@ -1204,6 +1205,41 @@ const PublicMenuContent: React.FC<PublicMenuContentProps> = ({
     const secs = diffSec % 60;
     return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   }, [addons.countdownTimer?.enabled, addons.countdownTimer?.endHour, nowMs]);
+
+  const promoTickets = useMemo(
+    () =>
+      buildMenuPromoTickets({
+        addons,
+        activeMenuDiscount,
+        orderType,
+        currency,
+        formatMoney: fmtMoney,
+        firstOrderPct,
+        pickupPct,
+        freeDeliveryEnabled,
+        freeDeliveryMin,
+        qualifiesFreeDelivery,
+        spinFreeDelivery,
+        minOrderEnabled,
+        minOrderAmount,
+        loyaltyBalance,
+      }),
+    [
+      addons,
+      activeMenuDiscount,
+      orderType,
+      currency,
+      firstOrderPct,
+      pickupPct,
+      freeDeliveryEnabled,
+      freeDeliveryMin,
+      qualifiesFreeDelivery,
+      spinFreeDelivery,
+      minOrderEnabled,
+      minOrderAmount,
+      loyaltyBalance,
+    ]
+  );
 
   // Helpers
   const getItemCartQty = (itemId: string) =>
@@ -1971,6 +2007,7 @@ const PublicMenuContent: React.FC<PublicMenuContentProps> = ({
             onNavigate={onNavigate}
             selectedCatId={estoreCatFilter}
             onSelectCatId={setEstoreCatFilter}
+            promoTickets={promoTickets}
           />
         </Suspense>
       ) : (
@@ -2124,78 +2161,8 @@ const PublicMenuContent: React.FC<PublicMenuContentProps> = ({
               </div>
             </section>
 
-            {/* Toters Horizontal Promo Ticket Cards */}
-            {(() => {
-              const tickets: Array<{
-                id: string;
-                badgeIcon: React.ReactNode;
-                badgeBg: string;
-                eyebrow: string;
-                title: string;
-                footer: string;
-                onClick?: () => void;
-              }> = [];
-
-              if (freeDeliveryEnabled && freeDeliveryMin > 0 && orderType === 'delivery') {
-                tickets.push({
-                  id: 'fd-ticket',
-                  badgeIcon: <Truck size={12} />,
-                  badgeBg: '#ef4444',
-                  eyebrow: `عند الطلب بـ ${fmtMoney(freeDeliveryMin)}`,
-                  title: 'توصيل مجاني',
-                  footer: qualifiesFreeDelivery ? 'مُفعّل لطلبك ✓' : 'يُطبق تلقائياً',
-                });
-              }
-
-              if (firstOrderPct > 0) {
-                tickets.push({
-                  id: 'first-order-ticket',
-                  badgeIcon: <Sparkles size={12} />,
-                  badgeBg: brandColor,
-                  eyebrow: 'على طلبك الأول',
-                  title: `خصم ${firstOrderPct}%`,
-                  footer: 'يُطبق تلقائياً',
-                });
-              }
-
-              if (addons.loyaltyPoints?.enabled) {
-                tickets.push({
-                  id: 'loyalty-ticket',
-                  badgeIcon: <Gift size={12} />,
-                  badgeBg: brandColor,
-                  eyebrow: 'برنامج نقاط الولاء',
-                  title: `اكسب ${addons.loyaltyPoints.pointsPerThousand || 1} نقطة / 1,000`,
-                  footer:
-                    loyaltyBalance > 0
-                      ? `رصيدك الحالي: ${loyaltyBalance} نقطة`
-                      : addons.loyaltyPoints.rewardNote || 'تُضاف نقاطك تلقائياً بعد كل طلب',
-                });
-              }
-
-              if (tickets.length === 0) return null;
-
-              return (
-                <div className="pm-toters-tickets-strip" aria-label="العروض والخصومات">
-                  {tickets.map((tk) => (
-                    <button
-                      key={tk.id}
-                      type="button"
-                      className="pm-toters-ticket"
-                      onClick={tk.onClick}
-                      style={{ cursor: tk.onClick ? 'pointer' : 'default' }}
-                    >
-                      <span className="pm-toters-ticket-icon" style={{ background: tk.badgeBg }}>
-                        {tk.badgeIcon}
-                      </span>
-                      <span className="pm-toters-ticket-eyebrow">{tk.eyebrow}</span>
-                      <strong className="pm-toters-ticket-title">{tk.title}</strong>
-                      <span className="pm-toters-ticket-divider" aria-hidden="true" />
-                      <span className="pm-toters-ticket-footer">{tk.footer}</span>
-                    </button>
-                  ))}
-                </div>
-              );
-            })()}
+            {/* Horizontal Promo Ticket Cards + Detail Bottom Sheet */}
+            <MenuPromoTickets tickets={promoTickets} isLightSurface={isLightMenu} />
           </div>
         </>
       ) : (
@@ -2371,6 +2338,9 @@ const PublicMenuContent: React.FC<PublicMenuContentProps> = ({
                 </div>
               )}
             </section>
+
+            {/* Horizontal Promo Ticket Cards + Detail Bottom Sheet */}
+            <MenuPromoTickets tickets={promoTickets} isLightSurface={isLightMenu} />
           </div>
         </>
       )}

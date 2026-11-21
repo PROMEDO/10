@@ -58,6 +58,13 @@ import {
   waLink,
 } from '../../utils/storage';
 import { getDashboardTabPath } from '../../utils/router';
+import {
+  checkAndNotifyPendingOrders,
+  playBellTone,
+  unlockBellAudio,
+} from '../../utils/orderBell';
+
+export { playBellTone, unlockBellAudio };
 import { AjaxDialogState, INITIAL_AJAX_DIALOG } from '../../components/AjaxConfirmModal';
 import {
   AddonCategoryFilter,
@@ -223,142 +230,6 @@ function buildDeliveryZonesDraft(rest: Restaurant): DeliveryZoneDraft[] {
     }
   });
   return list;
-}
-
-let sharedBellAudioCtx: AudioContext | null = null;
-let pendingBellTone: 'chime' | 'bell' | 'alert' | null = null;
-
-function getOrCreateBellAudioCtx(): AudioContext | null {
-  if (typeof window === 'undefined') return null;
-  const AudioCtx =
-    window.AudioContext ||
-    (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!AudioCtx) return null;
-  if (!sharedBellAudioCtx || sharedBellAudioCtx.state === 'closed') {
-    sharedBellAudioCtx = new AudioCtx();
-  }
-  return sharedBellAudioCtx;
-}
-
-let lastBellTriggeredAt = 0;
-
-function scheduleBellChime(ctx: AudioContext, tone: 'chime' | 'bell' | 'alert') {
-  const nowMs = Date.now();
-  if (nowMs - lastBellTriggeredAt < 250) return;
-  lastBellTriggeredAt = nowMs;
-
-  const baseNow = ctx.currentTime + 0.02;
-  const repeatInterval = tone === 'chime' ? 0.95 : tone === 'alert' ? 0.8 : 0.85;
-  const repeatCount = 3;
-
-  const baseNotes: Array<{ freq: number; delay: number; duration: number; gain: number; shimmer?: number }> =
-    tone === 'bell'
-      ? [
-          { freq: 987.77, delay: 0, duration: 0.48, gain: 0.11, shimmer: 1975.53 },
-          { freq: 1318.51, delay: 0.13, duration: 0.68, gain: 0.125, shimmer: 2637.02 },
-        ]
-      : tone === 'alert'
-      ? [
-          { freq: 659.25, delay: 0, duration: 0.28, gain: 0.1, shimmer: 1318.51 },
-          { freq: 880, delay: 0.14, duration: 0.42, gain: 0.115, shimmer: 1760 },
-        ]
-      : [
-          { freq: 587.33, delay: 0, duration: 0.34, gain: 0.1 },
-          { freq: 783.99, delay: 0.11, duration: 0.4, gain: 0.11 },
-          { freq: 1046.5, delay: 0.22, duration: 0.56, gain: 0.105, shimmer: 2093 },
-        ];
-
-  for (let rep = 0; rep < repeatCount; rep++) {
-    const repOffset = rep * repeatInterval;
-    const isFinalRepeat = rep === repeatCount - 1;
-
-    baseNotes.forEach(({ freq, delay, duration, gain: peakGain, shimmer }) => {
-      const start = baseNow + repOffset + delay;
-      const finalDur = isFinalRepeat ? duration * 1.25 : duration;
-      const osc = ctx.createOscillator();
-      const gainNode = ctx.createGain();
-      osc.type = tone === 'alert' ? 'triangle' : 'sine';
-      osc.frequency.setValueAtTime(freq, start);
-
-      gainNode.gain.setValueAtTime(0.0001, start);
-      gainNode.gain.linearRampToValueAtTime(peakGain, start + 0.014);
-      gainNode.gain.exponentialRampToValueAtTime(0.0001, start + finalDur);
-
-      osc.connect(gainNode);
-      gainNode.connect(ctx.destination);
-      osc.start(start);
-      osc.stop(start + finalDur + 0.03);
-
-      if (shimmer) {
-        const shimmerOsc = ctx.createOscillator();
-        const shimmerGain = ctx.createGain();
-        shimmerOsc.type = 'sine';
-        shimmerOsc.frequency.setValueAtTime(shimmer, start);
-        shimmerGain.gain.setValueAtTime(0.0001, start);
-        shimmerGain.gain.linearRampToValueAtTime(0.02, start + 0.012);
-        shimmerGain.gain.exponentialRampToValueAtTime(0.0001, start + finalDur * 0.72);
-        shimmerOsc.connect(shimmerGain);
-        shimmerGain.connect(ctx.destination);
-        shimmerOsc.start(start);
-        shimmerOsc.stop(start + finalDur + 0.03);
-      }
-    });
-  }
-}
-
-export function unlockBellAudio() {
-  try {
-    const ctx = getOrCreateBellAudioCtx();
-    if (!ctx) return;
-    if (ctx.state === 'suspended') {
-      void ctx.resume().then(() => {
-        try {
-          const silentBuf = ctx.createBuffer(1, 1, 22050);
-          const src = ctx.createBufferSource();
-          src.buffer = silentBuf;
-          src.connect(ctx.destination);
-          src.start(0);
-        } catch {
-          // ignore silent buffer errors
-        }
-        if (pendingBellTone && ctx.state === 'running') {
-          const queued = pendingBellTone;
-          pendingBellTone = null;
-          scheduleBellChime(ctx, queued);
-        }
-      });
-    } else if (pendingBellTone && ctx.state === 'running') {
-      const queued = pendingBellTone;
-      pendingBellTone = null;
-      scheduleBellChime(ctx, queued);
-    }
-  } catch {
-    // ignore browser audio restrictions
-  }
-}
-
-export function playBellTone(tone: 'chime' | 'bell' | 'alert' = 'bell') {
-  try {
-    const ctx = getOrCreateBellAudioCtx();
-    if (!ctx) return;
-    if (ctx.state === 'suspended') {
-      pendingBellTone = tone;
-      void ctx
-        .resume()
-        .then(() => {
-          if (ctx.state === 'running') {
-            pendingBellTone = null;
-            scheduleBellChime(ctx, tone);
-          }
-        })
-        .catch(() => {});
-      return;
-    }
-    pendingBellTone = null;
-    scheduleBellChime(ctx, tone);
-  } catch {
-    // ignore audio autoplay restrictions
-  }
 }
 
 export const SixDotDragHandle: React.FC = () => (
@@ -818,6 +689,24 @@ function useDashboardController({
     );
   };
 
+  const renameBranch = async (branchRid: string, nextNameRaw: string) => {
+    const cleanName = nextNameRaw.trim();
+    if (!cleanName) {
+      showToast('يرجى إدخال اسم صحيح للفرع');
+      return false;
+    }
+    const target = getItem<Restaurant>(`restaurants/${branchRid}`);
+    if (!target) return false;
+    const isSubBranch = Boolean(target.isBranch || target.parentRid);
+    const updated: Restaurant = isSubBranch
+      ? { ...target, branchName: cleanName, n: `${mainRest.n} — ${cleanName}` }
+      : { ...target, n: cleanName };
+    await putItemAndSync<Restaurant>(`restaurants/${branchRid}`, updated);
+    onRefresh();
+    showToast('تم تعديل اسم الفرع ✓');
+    return true;
+  };
+
   // Addons state synchronized with Restaurant object
   const [addonsState, setAddonsState] = useState<RestaurantAddons>(() => buildDefaultAddons(rest));
   const addonsStateRef = useRef<RestaurantAddons>(addonsState);
@@ -902,68 +791,10 @@ function useDashboardController({
     };
   }, [rid, onRefresh]);
 
-  // Play bell & alert notification whenever entering dashboard with pending new orders or when a new order arrives
-  const seenOrderIdsRef = useRef<Set<string>>(new Set());
-  const seenOrdersRidRef = useRef<string>('');
-  const entryNotifiedRidRef = useRef<string>('');
+  // Persistent notification check when entering dashboard or when allOrders refreshes
   useEffect(() => {
-    const bellAllowed = !addonsState.audioBell?.mutedByUser && addonsState.audioBell?.enabled !== false;
-
-    const triggerOrderAlert = (ordersList: Order[], isEntryReminder: boolean) => {
-      if (ordersList.length === 0) return;
-      if (bellAllowed) {
-        playBellTone(addonsState.audioBell?.tone || 'bell');
-      }
-      try {
-        if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
-          navigator.vibrate([160, 80, 160]);
-        }
-      } catch {
-        // ignore vibration unsupported errors
-      }
-      const latest = ordersList[0];
-      const seqVal = latest?.orderSeq || latest?.seq;
-      const seqLabel = seqVal ? `#${seqVal}` : `#${String(latest?.id || '').slice(-6).toUpperCase()}`;
-      if (isEntryReminder) {
-        showToast(
-          ordersList.length === 1
-            ? `يوجد طلب جديد بانتظار المراجعة (${seqLabel})`
-            : `يوجد ${ordersList.length} طلبات جديدة بانتظار المراجعة`
-        );
-      } else {
-        showToast(
-          ordersList.length === 1
-            ? `وصل طلب جديد (${seqLabel})`
-            : `وصلت ${ordersList.length} طلبات جديدة`
-        );
-      }
-    };
-
-    if (seenOrdersRidRef.current !== rid) {
-      seenOrdersRidRef.current = rid;
-      seenOrderIdsRef.current = new Set(allOrders.map((o) => o.id));
-      const pendingOnEntry = allOrders.filter((o) => o.st === 'new' || o.status === 'pending');
-      if (pendingOnEntry.length > 0 && entryNotifiedRidRef.current !== rid) {
-        entryNotifiedRidRef.current = rid;
-        triggerOrderAlert(pendingOnEntry, true);
-      }
-      return;
-    }
-
-    const newlyArrived = allOrders.filter((o) => !seenOrderIdsRef.current.has(o.id));
-    allOrders.forEach((o) => seenOrderIdsRef.current.add(o.id));
-
-    if (newlyArrived.length > 0) {
-      entryNotifiedRidRef.current = rid;
-      triggerOrderAlert(newlyArrived, false);
-    } else if (entryNotifiedRidRef.current !== rid) {
-      const pendingOnEntry = allOrders.filter((o) => o.st === 'new' || o.status === 'pending');
-      if (pendingOnEntry.length > 0) {
-        entryNotifiedRidRef.current = rid;
-        triggerOrderAlert(pendingOnEntry, true);
-      }
-    }
-  }, [rid, allOrders, addonsState.audioBell?.enabled, addonsState.audioBell?.mutedByUser, addonsState.audioBell?.tone, showToast]);
+    checkAndNotifyPendingOrders(rid, showToast, { isDashboardRoute: true });
+  }, [rid, allOrders, showToast]);
 
   // CATEGORIES STATE
   const [searchCatQuery, setSearchCatQuery] = useState('');
@@ -1630,23 +1461,29 @@ function useDashboardController({
       draftSnapshot.title = String(draftSnapshot.title || 'عرض الساعة الذهبية').trim();
       draftSnapshot.discountValue = discountValue;
       draftSnapshot.endHour = endHour;
+      draftSnapshot.minOrderAmount = Math.max(0, Number(draftSnapshot.minOrderAmount ?? 0) || 0);
+      draftSnapshot.maxDiscountAmount = Math.max(0, Number(draftSnapshot.maxDiscountAmount ?? 0) || 0);
     }
 
     if (keySnapshot === 'freeDeliveryProgress') {
       const minAmount = Math.max(0, Number(draftSnapshot.minAmount ?? 0) || 0);
-      if (shouldEnable && minAmount <= 0) {
-        return { ok: false, error: 'يجب تحديد مبلغ أكبر من صفر للحد الأدنى للتوصيل المجاني.' };
-      }
+      const maxDiscountAmount = Math.max(0, Number(draftSnapshot.maxDiscountAmount ?? 0) || 0);
       draftSnapshot.minAmount = minAmount;
+      draftSnapshot.maxDiscountAmount = maxDiscountAmount;
       draftSnapshot.label = String(draftSnapshot.label || 'شريط التوصيل المجاني').trim();
     }
 
     if (keySnapshot === 'minOrder') {
       const amount = Math.max(0, Number(draftSnapshot.amount ?? 0) || 0);
+      const maxAmount = Math.max(0, Number(draftSnapshot.maxAmount ?? 0) || 0);
       if (shouldEnable && amount <= 0) {
         return { ok: false, error: 'يجب تحديد مبلغ أكبر من صفر للحد الأدنى للطلب.' };
       }
+      if (shouldEnable && maxAmount > 0 && maxAmount < amount) {
+        return { ok: false, error: 'الحد الأعلى للطلب يجب أن يكون أكبر من أو يساوي الحد الأدنى.' };
+      }
       draftSnapshot.amount = amount;
+      draftSnapshot.maxAmount = maxAmount;
       draftSnapshot.message = String(draftSnapshot.message || 'الحد الأدنى للطلب هو').trim();
     }
 
@@ -1668,6 +1505,8 @@ function useDashboardController({
       draftSnapshot.startHour = startHour;
       draftSnapshot.endHour = endHour;
       draftSnapshot.discountPercent = pct;
+      draftSnapshot.minOrderAmount = Math.max(0, Number(draftSnapshot.minOrderAmount ?? 0) || 0);
+      draftSnapshot.maxDiscountAmount = Math.max(0, Number(draftSnapshot.maxDiscountAmount ?? 0) || 0);
     }
 
     if (keySnapshot === 'limitedTimeDiscount') {
@@ -1688,6 +1527,15 @@ function useDashboardController({
       draftSnapshot.expiresAt = shouldResetWindow
         ? nowTs + days * 86400000
         : prevExpires || nowTs + days * 86400000;
+      draftSnapshot.minOrderAmount = Math.max(0, Number(draftSnapshot.minOrderAmount ?? 0) || 0);
+      draftSnapshot.maxDiscountAmount = Math.max(0, Number(draftSnapshot.maxDiscountAmount ?? 0) || 0);
+    }
+
+    if (keySnapshot === 'firstOrderDiscount') {
+      draftSnapshot.title = String(draftSnapshot.title || 'هدية الترحيب لطلبك الأول').trim();
+      draftSnapshot.discountPercent = Math.min(90, Math.max(1, Number(draftSnapshot.discountPercent ?? 10) || 10));
+      draftSnapshot.minOrderAmount = Math.max(0, Number(draftSnapshot.minOrderAmount ?? 0) || 0);
+      draftSnapshot.maxDiscountAmount = Math.max(0, Number(draftSnapshot.maxDiscountAmount ?? 0) || 0);
     }
 
     if (keySnapshot === 'spinWheelPromo') {
@@ -1710,6 +1558,8 @@ function useDashboardController({
     if (keySnapshot === 'pickupInstantDiscount') {
       draftSnapshot.title = String(draftSnapshot.title || 'خصم الاستلام الذاتي').trim();
       draftSnapshot.discountPercent = Math.min(90, Math.max(1, Number(draftSnapshot.discountPercent ?? 10) || 10));
+      draftSnapshot.minOrderAmount = Math.max(0, Number(draftSnapshot.minOrderAmount ?? 0) || 0);
+      draftSnapshot.maxDiscountAmount = Math.max(0, Number(draftSnapshot.maxDiscountAmount ?? 0) || 0);
     }
 
     if (keySnapshot === 'moodMealFinder') {
@@ -3421,6 +3271,7 @@ function useDashboardController({
     switchActiveBranch,
     createBranch,
     cloneMainMenuToBranch,
+    renameBranch,
     deleteBranch,
     resolvedPlan,
     plans,

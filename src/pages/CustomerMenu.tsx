@@ -83,6 +83,7 @@ const EstoreStorefront = lazy(() =>
 import {
   ActiveMenuDiscount,
   applyMenuPriceDiscount,
+  computeOrderLevelDiscount,
   getActiveMenuDiscount,
 } from '../data/addonsCatalog';
 import {
@@ -165,7 +166,14 @@ function formatMoneyValue(amount: number, currency: string): string {
 function getPriceDisplay(
   it: MenuItem,
   currency: string,
-  activeDiscount: ActiveMenuDiscount = { active: false, type: 'percent', value: 0, sourceLabel: '' },
+  activeDiscount: ActiveMenuDiscount = {
+    active: false,
+    type: 'percent',
+    value: 0,
+    sourceLabel: '',
+    minOrderAmount: 0,
+    maxDiscountAmount: 0,
+  },
   allowItemDiscounts = true
 ) {
   const validSizes = (it.sizes || []).filter((s) => getSizeLabel(s));
@@ -1119,19 +1127,54 @@ const PublicMenuContent: React.FC<PublicMenuContentProps> = ({
   const freeDeliveryMin = freeDeliveryEnabled
     ? Math.max(0, Number(addons.freeDeliveryProgress?.minAmount ?? 0) || 0)
     : 0;
+  const freeDeliveryMaxDiscount = freeDeliveryEnabled
+    ? Math.max(0, Number(addons.freeDeliveryProgress?.maxDiscountAmount ?? 0) || 0)
+    : 0;
   const spinFreeDelivery = Boolean(addons.spinWheelPromo?.enabled && spinWonReward?.freeDelivery);
   const qualifiesFreeDelivery =
     orderType === 'delivery' &&
     ((freeDeliveryEnabled && (freeDeliveryMin === 0 || subtotal >= freeDeliveryMin)) || spinFreeDelivery);
-  const effectiveDeliveryFee = qualifiesFreeDelivery ? 0 : rawDeliveryFee;
+  const effectiveDeliveryFee = qualifiesFreeDelivery
+    ? freeDeliveryMaxDiscount > 0 && !spinFreeDelivery
+      ? Math.max(0, rawDeliveryFee - freeDeliveryMaxDiscount)
+      : 0
+    : rawDeliveryFee;
+
+  // Cart-level menu discount when minOrderAmount > 0 or maxDiscountAmount > 0
+  const isOrderLevelMenuDiscount =
+    activeMenuDiscount.active &&
+    (activeMenuDiscount.minOrderAmount > 0 || activeMenuDiscount.maxDiscountAmount > 0);
+  const menuOrderDiscountAmt = isOrderLevelMenuDiscount
+    ? computeOrderLevelDiscount(
+        subtotal,
+        activeMenuDiscount.type,
+        activeMenuDiscount.value,
+        activeMenuDiscount.minOrderAmount,
+        activeMenuDiscount.maxDiscountAmount
+      )
+    : 0;
+  const menuDiscountMinRemaining =
+    isOrderLevelMenuDiscount && activeMenuDiscount.minOrderAmount > subtotal
+      ? activeMenuDiscount.minOrderAmount - subtotal
+      : 0;
 
   // First-order discount & Spin wheel percent discount
   const firstOrderPct =
     addons.firstOrderDiscount?.enabled && !hasOrderedBefore
       ? Math.max(0, Math.min(90, Number(addons.firstOrderDiscount.discountPercent) || 0))
       : 0;
+  const firstOrderMinOrder = Math.max(0, Number(addons.firstOrderDiscount?.minOrderAmount ?? 0) || 0);
+  const firstOrderMaxDiscount = Math.max(0, Number(addons.firstOrderDiscount?.maxDiscountAmount ?? 0) || 0);
   const firstOrderDiscountAmt =
-    firstOrderPct > 0 ? Math.round((subtotal * firstOrderPct) / 100) : 0;
+    firstOrderPct > 0
+      ? computeOrderLevelDiscount(
+          Math.max(0, subtotal - menuOrderDiscountAmt),
+          'percent',
+          firstOrderPct,
+          firstOrderMinOrder,
+          firstOrderMaxDiscount
+        )
+      : 0;
 
   const spinPct =
     addons.spinWheelPromo?.enabled && spinWonReward && spinWonReward.percent > 0
@@ -1139,7 +1182,7 @@ const PublicMenuContent: React.FC<PublicMenuContentProps> = ({
       : 0;
   const spinDiscountAmt =
     spinPct > 0
-      ? Math.round((Math.max(0, subtotal - firstOrderDiscountAmt) * spinPct) / 100)
+      ? Math.round((Math.max(0, subtotal - menuOrderDiscountAmt - firstOrderDiscountAmt) * spinPct) / 100)
       : 0;
 
   // Free Gift Threshold
@@ -1153,11 +1196,15 @@ const PublicMenuContent: React.FC<PublicMenuContentProps> = ({
     ? Math.max(1, Math.floor((subtotal / 1000) * (Number(addons.loyaltyPoints.pointsPerThousand) || 1)))
     : 0;
 
-  // Min order addon
+  // Min / Max order addon
   const minOrderEnabled =
     addons.minOrder?.enabled === true && Number(addons.minOrder.amount) > 0;
   const minOrderAmount = minOrderEnabled ? Number(addons.minOrder?.amount) || 0 : 0;
+  const minOrderMaxAmount =
+    addons.minOrder?.enabled === true ? Math.max(0, Number(addons.minOrder?.maxAmount ?? 0) || 0) : 0;
   const belowMinOrder = minOrderEnabled && subtotal < minOrderAmount;
+  const aboveMaxOrder = addons.minOrder?.enabled === true && minOrderMaxAmount > 0 && subtotal > minOrderMaxAmount;
+  const orderLimitBlocked = belowMinOrder || aboveMaxOrder;
 
   const fmtMoney = (amt: number) => formatMoneyValue(amt, currency);
 
@@ -1166,15 +1213,24 @@ const PublicMenuContent: React.FC<PublicMenuContentProps> = ({
     addons.pickupInstantDiscount?.enabled && orderType === 'pickup'
       ? Math.max(0, Math.min(60, Number(addons.pickupInstantDiscount.discountPercent) || 10))
       : 0;
+  const pickupMinOrder = Math.max(0, Number(addons.pickupInstantDiscount?.minOrderAmount ?? 0) || 0);
+  const pickupMaxDiscount = Math.max(0, Number(addons.pickupInstantDiscount?.maxDiscountAmount ?? 0) || 0);
   const pickupDiscountAmt =
     pickupPct > 0
-      ? Math.round((Math.max(0, subtotal - firstOrderDiscountAmt - spinDiscountAmt) * pickupPct) / 100)
+      ? computeOrderLevelDiscount(
+          Math.max(0, subtotal - menuOrderDiscountAmt - firstOrderDiscountAmt - spinDiscountAmt),
+          'percent',
+          pickupPct,
+          pickupMinOrder,
+          pickupMaxDiscount
+        )
       : 0;
 
   const finalTotal =
     Math.max(
       0,
       subtotal -
+        menuOrderDiscountAmt -
         firstOrderDiscountAmt -
         spinDiscountAmt -
         pickupDiscountAmt
@@ -1508,6 +1564,10 @@ const PublicMenuContent: React.FC<PublicMenuContentProps> = ({
       );
       return;
     }
+    if (aboveMaxOrder) {
+      showToast(`الحد الأعلى للطلب هو ${formatNumber(minOrderMaxAmount)} ${currency}`);
+      return;
+    }
 
     if (customerName.trim().length < 2) {
       showToast('يرجى إدخال الاسم للتواصل');
@@ -1580,11 +1640,13 @@ const PublicMenuContent: React.FC<PublicMenuContentProps> = ({
 
       const origSubtotal = resolvedCartLines.reduce((s, line) => s + line.origUnitPrice * line.qty, 0);
       const itemsDiscountTotal = Math.max(0, origSubtotal - subtotal);
-      const orderLevelDiscountTotal = firstOrderDiscountAmt + spinDiscountAmt + pickupDiscountAmt;
+      const orderLevelDiscountTotal = menuOrderDiscountAmt + firstOrderDiscountAmt + spinDiscountAmt + pickupDiscountAmt;
       const totalDiscount = itemsDiscountTotal + orderLevelDiscountTotal;
       const pickupLabelText = addons.pickupInstantDiscount?.title || 'خصم الاستلام الفوري';
       const menuDiscountLabelText =
-        itemsDiscountTotal > 0 ? activeMenuDiscount.sourceLabel || 'خصم على الأطباق' : undefined;
+        itemsDiscountTotal > 0 || menuOrderDiscountAmt > 0
+          ? activeMenuDiscount.sourceLabel || 'خصم على الأطباق'
+          : undefined;
 
       const cu = {
         n: customerName.trim(),
@@ -1620,6 +1682,7 @@ const PublicMenuContent: React.FC<PublicMenuContentProps> = ({
         origSubtotal: origSubtotal > subtotal ? origSubtotal : undefined,
         itemsDiscountTotal: itemsDiscountTotal > 0 ? itemsDiscountTotal : undefined,
         menuDiscountLabel: menuDiscountLabelText,
+        menuOrderDiscount: menuOrderDiscountAmt > 0 ? menuOrderDiscountAmt : undefined,
         tot: finalTotal,
         total: finalTotal,
         cu: { ...cu, nt: combinedNotes },
@@ -1671,6 +1734,9 @@ const PublicMenuContent: React.FC<PublicMenuContentProps> = ({
 
       if (itemsDiscountTotal > 0) {
         lines.push(`خصم على الأطباق${menuDiscountLabelText ? ` (${menuDiscountLabelText})` : ''}: -${formatNumber(itemsDiscountTotal)} ${currency}`);
+      }
+      if (menuOrderDiscountAmt > 0) {
+        lines.push(`خصم العرض${menuDiscountLabelText ? ` (${menuDiscountLabelText})` : ''}: -${formatNumber(menuOrderDiscountAmt)} ${currency}`);
       }
       if (firstOrderDiscountAmt > 0) {
         lines.push(`خصم على الطلب (الطلب الأول ${firstOrderPct}%): -${formatNumber(firstOrderDiscountAmt)} ${currency}`);
@@ -2571,6 +2637,9 @@ const PublicMenuContent: React.FC<PublicMenuContentProps> = ({
                         </div>
                         <b className="pm-toters-shelf-title">{it.n}</b>
                         <span className="pm-toters-shelf-price tabular-nums">{priceInfo.main}</span>
+                        {unavailable && (
+                          <span className="pm-item-unavailable-label">غير متوفر حالياً</span>
+                        )}
                       </article>
                     );
                   })}
@@ -2744,6 +2813,9 @@ const PublicMenuContent: React.FC<PublicMenuContentProps> = ({
                                     </span>
                                   )}
                                 </div>
+                                {unavailable && (
+                                  <span className="pm-item-unavailable-label">غير متوفر حالياً</span>
+                                )}
                               </div>
 
                               {/* End (Left in RTL): Square Rounded Thumb + Floating Circular + */}
@@ -2882,6 +2954,9 @@ const PublicMenuContent: React.FC<PublicMenuContentProps> = ({
                                     </span>
                                   )}
                                 </div>
+                                {unavailable && (
+                                  <span className="pm-item-unavailable-label">غير متوفر حالياً</span>
+                                )}
                               </div>
 
                               {!displayOnly && (
@@ -3012,6 +3087,9 @@ const PublicMenuContent: React.FC<PublicMenuContentProps> = ({
                                   </button>
                                 )}
                               </div>
+                              {unavailable && (
+                                <span className="pm-item-unavailable-label">غير متوفر حالياً</span>
+                              )}
                             </div>
                           </article>
                         );
@@ -4595,7 +4673,7 @@ const PublicMenuContent: React.FC<PublicMenuContentProps> = ({
                     </label>
                   )}
 
-                  {/* Min Order Addon Warning */}
+                  {/* Min / Max Order & Menu Discount Threshold Notices */}
                   {belowMinOrder && (
                     <div
                       style={{
@@ -4611,6 +4689,38 @@ const PublicMenuContent: React.FC<PublicMenuContentProps> = ({
                     >
                       {addons.minOrder?.message || 'الحد الأدنى للطلب هو'} {fmtMoney(minOrderAmount)} (متبقي{' '}
                       {fmtMoney(minOrderAmount - subtotal)})
+                    </div>
+                  )}
+                  {aboveMaxOrder && (
+                    <div
+                      style={{
+                        background: 'rgba(239, 68, 68, 0.14)',
+                        border: '1px solid rgba(248, 113, 113, 0.35)',
+                        color: isLightMenu ? '#B91C1C' : '#FCA5A5',
+                        borderRadius: '12px',
+                        padding: '10px 12px',
+                        fontSize: '12.5px',
+                        fontWeight: 700,
+                        marginBottom: '12px',
+                      }}
+                    >
+                      الحد الأعلى المسموح لقيمة الطلب هو {fmtMoney(minOrderMaxAmount)}
+                    </div>
+                  )}
+                  {menuDiscountMinRemaining > 0 && (
+                    <div
+                      style={{
+                        background: 'rgba(245, 158, 11, 0.14)',
+                        border: '1px solid rgba(245, 158, 11, 0.35)',
+                        color: isLightMenu ? '#b45309' : '#fcd34d',
+                        borderRadius: '12px',
+                        padding: '9px 12px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        marginBottom: '12px',
+                      }}
+                    >
+                      أضف {fmtMoney(menuDiscountMinRemaining)} لتفعيل {activeMenuDiscount.sourceLabel || 'الخصم'}
                     </div>
                   )}
 
@@ -4632,6 +4742,18 @@ const PublicMenuContent: React.FC<PublicMenuContentProps> = ({
                         {fmtMoney(subtotal)}
                       </b>
                     </div>
+                    {menuOrderDiscountAmt > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', color: accentText }}>
+                        <span>
+                          {activeMenuDiscount.sourceLabel || 'خصم العرض'} (
+                          {activeMenuDiscount.type === 'fixed'
+                            ? fmtMoney(activeMenuDiscount.value)
+                            : `${activeMenuDiscount.value}%`}
+                          )
+                        </span>
+                        <b className="tabular-nums">-{fmtMoney(menuOrderDiscountAmt)}</b>
+                      </div>
+                    )}
                     {firstOrderDiscountAmt > 0 && (
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', color: accentText }}>
                         <span>{addons.firstOrderDiscount?.title || 'خصم الطلب الأول'} ({firstOrderPct}%)</span>
@@ -4813,14 +4935,18 @@ const PublicMenuContent: React.FC<PublicMenuContentProps> = ({
                         );
                         return;
                       }
+                      if (aboveMaxOrder) {
+                        showToast(`الحد الأعلى للطلب هو ${formatNumber(minOrderMaxAmount)} ${currency}`);
+                        return;
+                      }
                       setCheckoutStep('details');
                     }}
                     style={{
                       width: '100%',
-                      border: belowMinOrder ? '1px solid rgba(148, 163, 184, 0.3)' : '1px solid color-mix(in srgb, var(--pm-brand) 45%, transparent)',
+                      border: orderLimitBlocked ? '1px solid rgba(148, 163, 184, 0.3)' : '1px solid color-mix(in srgb, var(--pm-brand) 45%, transparent)',
                       borderRadius: '14px',
-                      background: belowMinOrder ? '#64748B' : brandColor,
-                      color: belowMinOrder ? '#ffffff' : brandInk,
+                      background: orderLimitBlocked ? '#64748B' : brandColor,
+                      color: orderLimitBlocked ? '#ffffff' : brandInk,
                       padding: '13px 16px',
                       fontSize: '15px',
                       fontWeight: 900,
@@ -5522,10 +5648,14 @@ const PublicMenuContent: React.FC<PublicMenuContentProps> = ({
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {searchResults.map((it) => {
                   const priceInfo = getPriceDisplay(it, currency, activeMenuDiscount, resolvedPlan.perms.itemDiscounts);
+                  const searchItemEval = itemEvalMap.get(it.id);
+                  const searchDisplayOnly = isDisplayOnlyItem(it);
+                  const searchUnavailable = !searchDisplayOnly && (searchItemEval ? !searchItemEval.available : false);
                   return (
                     <div
                       key={it.id}
                       className="pm-option-row"
+                      style={searchUnavailable ? { opacity: 0.62 } : undefined}
                       onClick={() => {
                         setSearchOpen(false);
                         openProductModal(it);
@@ -5555,6 +5685,9 @@ const PublicMenuContent: React.FC<PublicMenuContentProps> = ({
                               </span>
                             )}
                           </div>
+                          {searchUnavailable && (
+                            <span className="pm-item-unavailable-label">غير متوفر حالياً</span>
+                          )}
                         </div>
                       </div>
                       <span style={{ color: accentText, fontWeight: 800, fontSize: '12.5px' }}>عرض</span>

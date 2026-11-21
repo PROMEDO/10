@@ -156,8 +156,36 @@ export const AddonsPage: React.FC = () => {
                 <b className="mp-addon-card-title">{addon.title}</b>
                 <p className="mp-addon-card-desc">{addon.desc}</p>
                 {addon.key === 'freeDeliveryProgress' && (
-                  <div className="mp-addon-card-meta" style={{ color: isEnabled ? 'var(--brand)' : 'var(--muted)' }}>
-                    الحد الأدنى: {formatNumber(Number(cfg.minAmount ?? 25000))} {currency}
+                  <div className="mp-addon-card-meta tabular-nums" style={{ color: isEnabled ? 'var(--brand)' : 'var(--muted)' }}>
+                    {Number(cfg.minAmount ?? 0) > 0
+                      ? `الحد الأدنى: ${formatNumber(Number(cfg.minAmount ?? 0))} ${currency}`
+                      : 'الحد الأدنى: لا يوجد حد أدنى'}
+                    {Number(cfg.maxDiscountAmount ?? 0) > 0
+                      ? ` · الحد الأعلى: ${formatNumber(Number(cfg.maxDiscountAmount))} ${currency}`
+                      : ''}
+                  </div>
+                )}
+                {(addon.key === 'countdownTimer' ||
+                  addon.key === 'happyHour' ||
+                  addon.key === 'limitedTimeDiscount' ||
+                  addon.key === 'firstOrderDiscount' ||
+                  addon.key === 'pickupInstantDiscount') &&
+                  (Number(cfg.minOrderAmount ?? 0) > 0 || Number(cfg.maxDiscountAmount ?? 0) > 0) && (
+                    <div className="mp-addon-card-meta tabular-nums" style={{ color: isEnabled ? 'var(--brand)' : 'var(--muted)' }}>
+                      {Number(cfg.minOrderAmount ?? 0) > 0
+                        ? `أدنى طلب: ${formatNumber(Number(cfg.minOrderAmount))} ${currency}`
+                        : 'بدون حد أدنى'}
+                      {Number(cfg.maxDiscountAmount ?? 0) > 0
+                        ? ` · أعلى خصم: ${formatNumber(Number(cfg.maxDiscountAmount))} ${currency}`
+                        : ''}
+                    </div>
+                  )}
+                {addon.key === 'minOrder' && (
+                  <div className="mp-addon-card-meta tabular-nums" style={{ color: isEnabled ? 'var(--brand)' : 'var(--muted)' }}>
+                    الحد الأدنى: {formatNumber(Number(cfg.amount ?? 10000))} {currency}
+                    {Number(cfg.maxAmount ?? 0) > 0
+                      ? ` · الحد الأعلى: ${formatNumber(Number(cfg.maxAmount))} ${currency}`
+                      : ''}
                   </div>
                 )}
               </div>
@@ -629,6 +657,40 @@ export const AddonsPage: React.FC = () => {
                         ))}
                       </select>
                     </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <label className="f">
+                        {`الحد الأدنى للطلب (${currency})`}
+                        <input
+                          type="number"
+                          min={0}
+                          value={addonDraft.minOrderAmount ?? 0}
+                          onChange={(e) =>
+                            updateDraft((p) => ({
+                              ...p,
+                              minOrderAmount: e.target.value === '' ? 0 : Math.max(0, Number(e.target.value)),
+                            }))
+                          }
+                          placeholder="0 = لا يوجد حد أدنى"
+                          style={themedInputStyle}
+                        />
+                      </label>
+                      <label className="f">
+                        {`الحد الأعلى للخصم (${currency})`}
+                        <input
+                          type="number"
+                          min={0}
+                          value={addonDraft.maxDiscountAmount ?? 0}
+                          onChange={(e) =>
+                            updateDraft((p) => ({
+                              ...p,
+                              maxDiscountAmount: e.target.value === '' ? 0 : Math.max(0, Number(e.target.value)),
+                            }))
+                          }
+                          placeholder="0 = لا يوجد حد أعلى"
+                          style={themedInputStyle}
+                        />
+                      </label>
+                    </div>
                   </>
                 )}
 
@@ -657,17 +719,40 @@ export const AddonsPage: React.FC = () => {
 
                 {editingAddonKey === 'minOrder' && (
                   <>
-                    <label className="f">
-                      {`الحد الأدنى لمبلغ الطلب (${currency}) *`}
-                      <input
-                        type="number"
-                        min={1}
-                        value={addonDraft.amount ?? 10000}
-                        onChange={(e) => updateDraft((p) => ({ ...p, amount: Number(e.target.value) }))}
-                        style={themedInputStyle}
-                        required
-                      />
-                    </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <label className="f">
+                        {`الحد الأدنى لمبلغ الطلب (${currency}) *`}
+                        <input
+                          type="number"
+                          min={1}
+                          value={addonDraft.amount ?? 10000}
+                          onChange={(e) =>
+                            updateDraft((p) => ({
+                              ...p,
+                              amount: e.target.value === '' ? 0 : Math.max(0, Number(e.target.value)),
+                            }))
+                          }
+                          style={themedInputStyle}
+                          required
+                        />
+                      </label>
+                      <label className="f">
+                        {`الحد الأعلى لمبلغ الطلب (${currency})`}
+                        <input
+                          type="number"
+                          min={0}
+                          value={addonDraft.maxAmount ?? 0}
+                          onChange={(e) =>
+                            updateDraft((p) => ({
+                              ...p,
+                              maxAmount: e.target.value === '' ? 0 : Math.max(0, Number(e.target.value)),
+                            }))
+                          }
+                          placeholder="0 = بدون حد أعلى"
+                          style={themedInputStyle}
+                        />
+                      </label>
+                    </div>
                     <label className="f">
                       رسالة التنبيه للزبون
                       <input
@@ -762,6 +847,40 @@ export const AddonsPage: React.FC = () => {
                         style={themedInputStyle}
                       />
                     </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <label className="f">
+                        {`الحد الأدنى للطلب (${currency})`}
+                        <input
+                          type="number"
+                          min={0}
+                          value={addonDraft.minOrderAmount ?? 0}
+                          onChange={(e) =>
+                            updateDraft((p) => ({
+                              ...p,
+                              minOrderAmount: e.target.value === '' ? 0 : Math.max(0, Number(e.target.value)),
+                            }))
+                          }
+                          placeholder="0 = لا يوجد حد أدنى"
+                          style={themedInputStyle}
+                        />
+                      </label>
+                      <label className="f">
+                        {`الحد الأعلى للخصم (${currency})`}
+                        <input
+                          type="number"
+                          min={0}
+                          value={addonDraft.maxDiscountAmount ?? 0}
+                          onChange={(e) =>
+                            updateDraft((p) => ({
+                              ...p,
+                              maxDiscountAmount: e.target.value === '' ? 0 : Math.max(0, Number(e.target.value)),
+                            }))
+                          }
+                          placeholder="0 = لا يوجد حد أعلى"
+                          style={themedInputStyle}
+                        />
+                      </label>
+                    </div>
                     {(() => {
                       const s = Number(addonDraft.startHour ?? 14);
                       const en = Number(addonDraft.endHour ?? 17);
@@ -914,28 +1033,79 @@ export const AddonsPage: React.FC = () => {
                         style={themedInputStyle}
                       />
                     </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <label className="f">
+                        {`الحد الأدنى للطلب (${currency})`}
+                        <input
+                          type="number"
+                          min={0}
+                          value={addonDraft.minOrderAmount ?? 0}
+                          onChange={(e) =>
+                            updateDraft((p) => ({
+                              ...p,
+                              minOrderAmount: e.target.value === '' ? 0 : Math.max(0, Number(e.target.value)),
+                            }))
+                          }
+                          placeholder="0 = لا يوجد حد أدنى"
+                          style={themedInputStyle}
+                        />
+                      </label>
+                      <label className="f">
+                        {`الحد الأعلى للخصم (${currency})`}
+                        <input
+                          type="number"
+                          min={0}
+                          value={addonDraft.maxDiscountAmount ?? 0}
+                          onChange={(e) =>
+                            updateDraft((p) => ({
+                              ...p,
+                              maxDiscountAmount: e.target.value === '' ? 0 : Math.max(0, Number(e.target.value)),
+                            }))
+                          }
+                          placeholder="0 = لا يوجد حد أعلى"
+                          style={themedInputStyle}
+                        />
+                      </label>
+                    </div>
                   </>
                 )}
 
                 {editingAddonKey === 'freeDeliveryProgress' && (
                   <>
-                    <label className="f">
-                      {`الحد الأدنى للتوصيل المجاني (${currency}) *`}
-                      <input
-                        type="number"
-                        min={1}
-                        value={addonDraft.minAmount ?? 25000}
-                        onChange={(e) =>
-                          updateDraft((p) => ({
-                            ...p,
-                            minAmount: e.target.value === '' ? 0 : Math.max(0, Number(e.target.value)),
-                          }))
-                        }
-                        placeholder="25000"
-                        style={themedInputStyle}
-                        required
-                      />
-                    </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <label className="f">
+                        {`الحد الأدنى للتوصيل المجاني (${currency})`}
+                        <input
+                          type="number"
+                          min={0}
+                          value={addonDraft.minAmount ?? 25000}
+                          onChange={(e) =>
+                            updateDraft((p) => ({
+                              ...p,
+                              minAmount: e.target.value === '' ? 0 : Math.max(0, Number(e.target.value)),
+                            }))
+                          }
+                          placeholder="0 = لا يوجد حد أدنى"
+                          style={themedInputStyle}
+                        />
+                      </label>
+                      <label className="f">
+                        {`الحد الأعلى لخصم التوصيل (${currency})`}
+                        <input
+                          type="number"
+                          min={0}
+                          value={addonDraft.maxDiscountAmount ?? 0}
+                          onChange={(e) =>
+                            updateDraft((p) => ({
+                              ...p,
+                              maxDiscountAmount: e.target.value === '' ? 0 : Math.max(0, Number(e.target.value)),
+                            }))
+                          }
+                          placeholder="0 = لا يوجد حد أعلى"
+                          style={themedInputStyle}
+                        />
+                      </label>
+                    </div>
                     <label className="f">
                       عنوان شريط التوصيل المجاني التحفيزي
                       <input
@@ -1026,6 +1196,40 @@ export const AddonsPage: React.FC = () => {
                         style={themedInputStyle}
                       />
                     </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <label className="f">
+                        {`الحد الأدنى للطلب (${currency})`}
+                        <input
+                          type="number"
+                          min={0}
+                          value={addonDraft.minOrderAmount ?? 0}
+                          onChange={(e) =>
+                            updateDraft((p) => ({
+                              ...p,
+                              minOrderAmount: e.target.value === '' ? 0 : Math.max(0, Number(e.target.value)),
+                            }))
+                          }
+                          placeholder="0 = لا يوجد حد أدنى"
+                          style={themedInputStyle}
+                        />
+                      </label>
+                      <label className="f">
+                        {`الحد الأعلى للخصم (${currency})`}
+                        <input
+                          type="number"
+                          min={0}
+                          value={addonDraft.maxDiscountAmount ?? 0}
+                          onChange={(e) =>
+                            updateDraft((p) => ({
+                              ...p,
+                              maxDiscountAmount: e.target.value === '' ? 0 : Math.max(0, Number(e.target.value)),
+                            }))
+                          }
+                          placeholder="0 = لا يوجد حد أعلى"
+                          style={themedInputStyle}
+                        />
+                      </label>
+                    </div>
                   </>
                 )}
 
@@ -1053,6 +1257,41 @@ export const AddonsPage: React.FC = () => {
                           required
                         />
                       </label>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        <label className="f">
+                          {`الحد الأدنى للطلب (${currency})`}
+                          <input
+                            type="number"
+                            min={0}
+                            value={addonDraft.minOrderAmount ?? 0}
+                            onChange={(e) =>
+                              updateDraft((p) => ({
+                                ...p,
+                                minOrderAmount: e.target.value === '' ? 0 : Math.max(0, Number(e.target.value)),
+                              }))
+                            }
+                            placeholder="0 = لا يوجد حد أدنى"
+                            style={themedInputStyle}
+                          />
+                        </label>
+                        <label className="f">
+                          {`الحد الأعلى للخصم (${currency})`}
+                          <input
+                            type="number"
+                            min={0}
+                            value={addonDraft.maxDiscountAmount ?? 0}
+                            onChange={(e) =>
+                              updateDraft((p) => ({
+                                ...p,
+                                maxDiscountAmount: e.target.value === '' ? 0 : Math.max(0, Number(e.target.value)),
+                              }))
+                            }
+                            placeholder="0 = لا يوجد حد أعلى"
+                            style={themedInputStyle}
+                          />
+                        </label>
+                      </div>
 
                       <div className="f" style={{ marginBottom: 0 }}>
                         <span>المدة (تختارها للإدارة فقط ولا تظهر للزبائن)</span>

@@ -30,6 +30,7 @@ import {
 } from './utils/router';
 import { detectClientSubdomain } from './utils/businessDefaults';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
+import { checkAndNotifyPendingOrders, unlockBellAudio } from './utils/orderBell';
 
 const HomeView = lazy(() => import('./pages/Home').then((m) => ({ default: m.HomeView })));
 const AuthView = lazy(() => import('./pages/Login').then((m) => ({ default: m.AuthView })));
@@ -100,10 +101,11 @@ export default function App() {
     }
     const toastId = Date.now();
     setToastState({ id: toastId, text: cleanText, isError });
+    const durationMs = /طلب جديد|طلبات جديدة/.test(cleanText) ? 4500 : 3000;
     toastTimerRef.current = window.setTimeout(() => {
       toastTimerRef.current = null;
       setToastState((cur) => (cur && cur.id === toastId ? null : cur));
-    }, 3000);
+    }, durationMs);
   }, []);
 
   useEffect(() => {
@@ -314,6 +316,88 @@ export default function App() {
     route.page === 'dashboard' && session?.rid
       ? getItem<Restaurant>(`restaurants/${session.rid}`)?.dashboardThemeMode
       : undefined;
+
+  const activeOwnerRid = session?.rid
+    ? session.rid
+    : session?.admin && !session?.menuLoggedOut
+    ? session.personalRid || 'demo'
+    : '';
+  const isStorefrontOrDashboardRoute =
+    route.page === 'menu' ||
+    route.page === 'dashboard' ||
+    Boolean(subdomainRestaurantId && route.page === 'home');
+
+  useEffect(() => {
+    const handleUnlock = () => unlockBellAudio();
+    window.addEventListener('pointerdown', handleUnlock, { passive: true });
+    window.addEventListener('keydown', handleUnlock, { passive: true });
+    window.addEventListener('touchstart', handleUnlock, { passive: true });
+    window.addEventListener('click', handleUnlock, { passive: true });
+    return () => {
+      window.removeEventListener('pointerdown', handleUnlock);
+      window.removeEventListener('keydown', handleUnlock);
+      window.removeEventListener('touchstart', handleUnlock);
+      window.removeEventListener('click', handleUnlock);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!activeOwnerRid || !isStorefrontOrDashboardRoute) return;
+    let active = true;
+    const isDash = route.page === 'dashboard';
+
+    const evaluateNow = () => {
+      if (!active || !initialSyncDoneRef.current) return;
+      checkAndNotifyPendingOrders(activeOwnerRid, showToast, { isDashboardRoute: isDash });
+    };
+
+    const pollServerOrders = async () => {
+      if (!active || document.visibilityState === 'hidden') return;
+      try {
+        const ok = await syncFromServer();
+        if (ok && active && mountedRef.current) {
+          evaluateNow();
+        }
+      } catch {
+        // ignore transient background poll errors
+      }
+    };
+
+    const handleDbOrStorage = () => {
+      evaluateNow();
+    };
+
+    const handleWake = () => {
+      if (document.visibilityState !== 'hidden') {
+        void pollServerOrders();
+      }
+    };
+
+    // Immediate evaluation & initial server check
+    evaluateNow();
+    void pollServerOrders();
+
+    // Only poll here on storefront/menu routes (DashboardContext already runs a 4s poll on dashboard)
+    const intervalId = !isDash
+      ? window.setInterval(() => {
+          void pollServerOrders();
+        }, 4000)
+      : null;
+
+    window.addEventListener('menuplus_db_updated', handleDbOrStorage);
+    window.addEventListener('storage', handleDbOrStorage);
+    window.addEventListener('focus', handleWake);
+    document.addEventListener('visibilitychange', handleWake);
+
+    return () => {
+      active = false;
+      if (intervalId !== null) window.clearInterval(intervalId);
+      window.removeEventListener('menuplus_db_updated', handleDbOrStorage);
+      window.removeEventListener('storage', handleDbOrStorage);
+      window.removeEventListener('focus', handleWake);
+      document.removeEventListener('visibilitychange', handleWake);
+    };
+  }, [activeOwnerRid, isStorefrontOrDashboardRoute, route.page, showToast]);
 
   useEffect(() => {
     const isLandingHome = !subdomainRestaurantId && route.page === 'home';

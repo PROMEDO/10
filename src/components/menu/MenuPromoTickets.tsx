@@ -58,8 +58,10 @@ export function buildMenuPromoTickets({
   loyaltyBalance = 0,
 }: BuildMenuPromoTicketsInput): MenuPromoTicketItem[] {
   const tickets: MenuPromoTicketItem[] = [];
-  const defaultMinOrderText =
-    minOrderEnabled && minOrderAmount > 0 ? formatMoney(minOrderAmount) : 'لا يوجد حد أدنى';
+  const resolveMinOrderText = (addonMin = 0) => {
+    const effectiveMin = addonMin > 0 ? addonMin : minOrderEnabled && minOrderAmount > 0 ? minOrderAmount : 0;
+    return effectiveMin > 0 ? formatMoney(effectiveMin) : 'لا يوجد حد أدنى';
+  };
 
   if (addons.loyaltyPoints?.enabled) {
     const pts = Math.max(1, Number(addons.loyaltyPoints.pointsPerThousand) || 1);
@@ -89,6 +91,8 @@ export function buildMenuPromoTickets({
         : activeMenuDiscount.sourceType === 'countdown'
         ? addons.countdownTimer?.title?.trim() || 'على طلبك القادم'
         : 'على طلبك القادم';
+    const maxCap = Math.max(0, Number(activeMenuDiscount.maxDiscountAmount || 0));
+    const minReq = Math.max(0, Number(activeMenuDiscount.minOrderAmount || 0));
 
     tickets.push({
       id: 'promo-active-discount',
@@ -96,42 +100,56 @@ export function buildMenuPromoTickets({
       eyebrow,
       title: discountLabel,
       footer: 'يُطبق تلقائياً',
-      modalTitle: isFixed
-        ? `خصم ${formatMoney(activeMenuDiscount.value)} على طلبك`
-        : `خصم ${formatNumber(activeMenuDiscount.value)}٪ على طلبك`,
-      minOrderText: defaultMinOrderText,
-      maxDiscountText: 'لا يوجد حد أقصى',
+      modalTitle:
+        maxCap > 0 && !isFixed
+          ? `خصم ${formatNumber(activeMenuDiscount.value)}٪ لغاية ${formatMoney(maxCap)}`
+          : isFixed
+          ? `خصم ${formatMoney(activeMenuDiscount.value)} على طلبك`
+          : `خصم ${formatNumber(activeMenuDiscount.value)}٪ على طلبك`,
+      minOrderText: resolveMinOrderText(minReq),
+      maxDiscountText: maxCap > 0 ? formatMoney(maxCap) : 'لا يوجد حد أقصى',
     });
   }
 
   if (firstOrderPct > 0 && addons.firstOrderDiscount?.enabled) {
+    const minReq = Math.max(0, Number(addons.firstOrderDiscount.minOrderAmount || 0));
+    const maxCap = Math.max(0, Number(addons.firstOrderDiscount.maxDiscountAmount || 0));
     tickets.push({
       id: 'promo-first-order',
       kind: 'discount',
       eyebrow: 'على طلبك الأول',
       title: `خصم ${formatNumber(firstOrderPct)}٪`,
       footer: 'يُطبق تلقائياً',
-      modalTitle: `خصم ${formatNumber(firstOrderPct)}٪ على طلبك الأول`,
-      minOrderText: defaultMinOrderText,
-      maxDiscountText: 'لا يوجد حد أقصى',
+      modalTitle:
+        maxCap > 0
+          ? `خصم ${formatNumber(firstOrderPct)}٪ لغاية ${formatMoney(maxCap)}`
+          : `خصم ${formatNumber(firstOrderPct)}٪ على طلبك الأول`,
+      minOrderText: resolveMinOrderText(minReq),
+      maxDiscountText: maxCap > 0 ? formatMoney(maxCap) : 'لا يوجد حد أقصى',
     });
   }
 
   if (pickupPct > 0 && addons.pickupInstantDiscount?.enabled && orderType === 'pickup') {
+    const minReq = Math.max(0, Number(addons.pickupInstantDiscount.minOrderAmount || 0));
+    const maxCap = Math.max(0, Number(addons.pickupInstantDiscount.maxDiscountAmount || 0));
     tickets.push({
       id: 'promo-pickup-discount',
       kind: 'discount',
       eyebrow: 'عند الاستلام الذاتي',
       title: `خصم ${formatNumber(pickupPct)}٪`,
       footer: 'يُطبق تلقائياً',
-      modalTitle: `خصم ${formatNumber(pickupPct)}٪ عند الاستلام الذاتي`,
-      minOrderText: defaultMinOrderText,
-      maxDiscountText: 'لا يوجد حد أقصى',
+      modalTitle:
+        maxCap > 0
+          ? `خصم ${formatNumber(pickupPct)}٪ لغاية ${formatMoney(maxCap)}`
+          : `خصم ${formatNumber(pickupPct)}٪ عند الاستلام الذاتي`,
+      minOrderText: resolveMinOrderText(minReq),
+      maxDiscountText: maxCap > 0 ? formatMoney(maxCap) : 'لا يوجد حد أقصى',
     });
   }
 
   if ((freeDeliveryEnabled || spinFreeDelivery) && orderType === 'delivery') {
     const hasMin = freeDeliveryMin > 0 && !spinFreeDelivery;
+    const maxCap = Math.max(0, Number(addons.freeDeliveryProgress?.maxDiscountAmount || 0));
     tickets.push({
       id: 'promo-free-delivery',
       kind: 'free_delivery',
@@ -139,9 +157,10 @@ export function buildMenuPromoTickets({
       title: 'توصيل مجاني',
       footer: qualifiesFreeDelivery ? 'مُفعّل لطلبك ✓' : 'يُطبق تلقائياً',
       isUnlocked: qualifiesFreeDelivery,
-      modalTitle: 'توصيل مجاني',
+      modalTitle:
+        maxCap > 0 ? `توصيل مجاني لغاية ${formatMoney(maxCap)}` : 'توصيل مجاني',
       minOrderText: hasMin ? formatMoney(freeDeliveryMin) : 'لا يوجد حد أدنى',
-      maxDiscountText: 'لا يوجد حد أقصى',
+      maxDiscountText: maxCap > 0 ? formatMoney(maxCap) : 'لا يوجد حد أقصى',
     });
   }
 

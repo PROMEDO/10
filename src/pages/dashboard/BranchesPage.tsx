@@ -7,11 +7,10 @@ import React, { useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import {
   CheckCircle2,
-  Copy,
+  Edit2,
   ExternalLink,
   GitBranch,
   Plus,
-  RefreshCw,
   Trash2,
   X,
 } from 'lucide-react';
@@ -38,9 +37,8 @@ export const BranchesPage: React.FC = () => {
     site,
     switchActiveBranch,
     createBranch,
-    cloneMainMenuToBranch,
+    renameBranch,
     deleteBranch,
-    copyLink,
     onNavigate,
     openUpgradeModal,
     showToast,
@@ -51,6 +49,10 @@ export const BranchesPage: React.FC = () => {
   const [newBranchPhone, setNewBranchPhone] = useState('');
   const [newBranchAddress, setNewBranchAddress] = useState('');
   const [cloneOnCreate, setCloneOnCreate] = useState(true);
+
+  const [editingBranch, setEditingBranch] = useState<{ id: string; name: string; isMain: boolean } | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [isRenaming, setIsRenaming] = useState(false);
 
   const maxB = resolvedPlan.maxBranches;
   const isLocked = maxB === 0;
@@ -87,6 +89,57 @@ export const BranchesPage: React.FC = () => {
       setNewBranchAddress('');
       setShowCreateModal(false);
     }
+  };
+
+  const openRenameModal = (id: string, currentName: string, isMain: boolean) => {
+    setEditingBranch({ id, name: currentName, isMain });
+    setRenameValue(currentName);
+  };
+
+  const handleRenameSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingBranch || isRenaming) return;
+    setIsRenaming(true);
+    try {
+      const ok = await renameBranch(editingBranch.id, renameValue);
+      if (ok) {
+        setEditingBranch(null);
+      }
+    } finally {
+      setIsRenaming(false);
+    }
+  };
+
+  const renderOpenMenuAction = (branchItem: typeof mainRest) => {
+    const hasSubdomain = Boolean(getFullSubdomainUrl(branchItem, site, resolvedPlan));
+    const url = getBranchUrl(branchItem);
+    const label = terms.isStore ? 'فتح المتجر' : 'فتح المنيو';
+
+    if (hasSubdomain) {
+      return (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn s"
+          style={{ textDecoration: 'none', minHeight: '38px', fontWeight: 700 }}
+        >
+          <ExternalLink size={14} />
+          <span>{label}</span>
+        </a>
+      );
+    }
+    return (
+      <button
+        type="button"
+        onClick={() => onNavigate(getPublicMenuUrlPath(branchItem, resolvedPlan))}
+        className="btn s"
+        style={{ minHeight: '38px', fontWeight: 700 }}
+      >
+        <ExternalLink size={14} />
+        <span>{label}</span>
+      </button>
+    );
   };
 
   return (
@@ -129,8 +182,8 @@ export const BranchesPage: React.FC = () => {
           </motion.button>
         </div>
       ) : (
-        <div style={{ maxWidth: '1020px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 4px' }}>
+        <div style={{ maxWidth: '820px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '6px 0 2px' }}>
             <motion.button
               type="button"
               onClick={handleOpenCreateModal}
@@ -138,103 +191,109 @@ export const BranchesPage: React.FC = () => {
               whileHover={prefersReducedMotion ? undefined : { y: -2, scale: 1.025, transition: { duration: 0.42, ease: DASH_EASE } }}
               whileTap={prefersReducedMotion ? undefined : { scale: 0.96, transition: { duration: 0.22 } }}
               style={{
-                height: '44px',
-                padding: '0 22px',
-                borderRadius: '13px',
-                fontSize: '14px',
+                height: '42px',
+                padding: '0 20px',
+                borderRadius: '12px',
+                fontSize: '13.5px',
                 fontWeight: 800,
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '8px',
+                gap: '7px',
               }}
             >
-              <Plus size={17} />
+              <Plus size={16} />
               <span>إضافة فرع جديد</span>
             </motion.button>
           </div>
 
-          {/* Main Branch + Child Branches List */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {(() => {
               const isManagingMain = activeRid === mainRid;
               const mainCatsCount = allCats.filter((c) => c.rid === mainRid).length;
               const mainItemsCount = allItems.filter((i) => i.rid === mainRid).length;
-              const mainUrl = getBranchUrl(mainRest);
 
               return (
                 <motion.div
                   {...dashSectionMotion(prefersReducedMotion, 0.04)}
                   style={{
                     ...surfaceCardStyle,
-                    borderRadius: '18px',
-                    padding: '18px 20px',
-                    border: isManagingMain ? '2px solid var(--brand)' : '1px solid var(--line)',
+                    borderRadius: '16px',
+                    padding: '14px 16px',
+                    border: isManagingMain ? '1.5px solid var(--brand)' : '1px solid var(--line)',
                     background: isManagingMain ? 'var(--soft)' : 'var(--surface)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     flexWrap: 'wrap',
-                    gap: '14px',
+                    gap: '12px',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
-                    <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'var(--brand)', color: '#fff', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
-                      <GitBranch size={20} />
+                  <div
+                    onClick={() => !isManagingMain && switchActiveBranch(mainRid)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      minWidth: 0,
+                      flex: '1 1 220px',
+                      cursor: isManagingMain ? 'default' : 'pointer',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '38px',
+                        height: '38px',
+                        borderRadius: '11px',
+                        background: 'var(--brand)',
+                        color: '#fff',
+                        display: 'grid',
+                        placeItems: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <GitBranch size={18} />
                     </div>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                        <b style={{ fontSize: '16px', color: 'var(--ink)' }}>
-                          {mainRest.n} (الفرع الرئيسي)
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        <b style={{ fontSize: '15px', color: 'var(--ink)' }}>
+                          {mainRest.n}
                         </b>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)' }}>
+                          (الرئيسي)
+                        </span>
                         {isManagingMain && (
-                          <span style={{ fontSize: '11px', fontWeight: 800, color: '#10b981', background: 'rgba(16,185,129,0.16)', padding: '2px 8px', borderRadius: '8px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                            <CheckCircle2 size={12} /> نشط الآن في اللوحة
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: 800,
+                              color: '#10b981',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                            }}
+                          >
+                            <CheckCircle2 size={12} /> نشط
                           </span>
                         )}
                       </div>
-                      <div style={{ fontSize: '12.5px', color: 'var(--muted)', marginTop: '3px' }}>
-                        {mainCatsCount} أقسام • {mainItemsCount} {terms.isStore ? 'منتج' : 'عنصر'} • {mainRest.address || 'العنوان الرئيسي'}
+                      <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }} className="tabular-nums">
+                        {mainCatsCount} أقسام · {mainItemsCount} {terms.isStore ? 'منتج' : 'عنصر'}
                       </div>
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                    {!isManagingMain && (
-                      <button
-                        type="button"
-                        onClick={() => switchActiveBranch(mainRid)}
-                        className="btn p s"
-                        style={{ fontWeight: 800 }}
-                      >
-                        إدارة الرئيسي الآن
-                      </button>
-                    )}
-                    <button type="button" onClick={() => copyLink(mainUrl)} className="btn s">
-                      <Copy size={14} />
-                      <span>نسخ الرابط</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={() => openRenameModal(mainRid, mainRest.n, true)}
+                      className="btn s"
+                      style={{ minHeight: '38px', fontWeight: 700 }}
+                    >
+                      <Edit2 size={14} />
+                      <span>تعديل الاسم</span>
                     </button>
-                    {getFullSubdomainUrl(mainRest, site, resolvedPlan) ? (
-                      <a
-                        href={mainUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn s"
-                        style={{ textDecoration: 'none' }}
-                      >
-                        <ExternalLink size={14} />
-                        <span>{terms.isStore ? 'فتح المتجر' : 'فتح المنيو'}</span>
-                      </a>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => onNavigate(getPublicMenuUrlPath(mainRest, resolvedPlan))}
-                        className="btn s"
-                      >
-                        <ExternalLink size={14} />
-                        <span>{terms.isStore ? 'فتح المتجر' : 'فتح المنيو'}</span>
-                      </button>
-                    )}
+                    {renderOpenMenuAction(mainRest)}
                   </div>
                 </motion.div>
               );
@@ -245,7 +304,6 @@ export const BranchesPage: React.FC = () => {
               const branchLabel = branch.branchName || branch.n;
               const branchCats = allCats.filter((c) => c.rid === branch.id).length;
               const branchItems = allItems.filter((i) => i.rid === branch.id).length;
-              const branchUrl = getBranchUrl(branch);
 
               return (
                 <motion.div
@@ -253,84 +311,86 @@ export const BranchesPage: React.FC = () => {
                   {...dashCardMotion(prefersReducedMotion, idx, 1, false, 0.08)}
                   style={{
                     ...surfaceCardStyle,
-                    borderRadius: '18px',
-                    padding: '18px 20px',
-                    border: isManagingThis ? '2px solid var(--brand)' : '1px solid var(--line)',
+                    borderRadius: '16px',
+                    padding: '14px 16px',
+                    border: isManagingThis ? '1.5px solid var(--brand)' : '1px solid var(--line)',
                     background: isManagingThis ? 'var(--soft)' : 'var(--surface)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     flexWrap: 'wrap',
-                    gap: '14px',
+                    gap: '12px',
                   }}
                 >
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                      <b style={{ fontSize: '15.5px', color: 'var(--ink)' }}>🏢 {branchLabel}</b>
-                      {isManagingThis && (
-                        <span style={{ fontSize: '11px', fontWeight: 800, color: '#10b981', background: 'rgba(16,185,129,0.16)', padding: '2px 8px', borderRadius: '8px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                          <CheckCircle2 size={12} /> قيد الإدارة الآن
-                        </span>
-                      )}
+                  <div
+                    onClick={() => !isManagingThis && switchActiveBranch(branch.id)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      minWidth: 0,
+                      flex: '1 1 220px',
+                      cursor: isManagingThis ? 'default' : 'pointer',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '38px',
+                        height: '38px',
+                        borderRadius: '11px',
+                        background: 'color-mix(in srgb, var(--brand) 14%, transparent)',
+                        color: 'var(--brand)',
+                        display: 'grid',
+                        placeItems: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <GitBranch size={17} />
                     </div>
-                    <div style={{ fontSize: '12.5px', color: 'var(--muted)', marginTop: '3px' }}>
-                      {branchCats} أقسام • {branchItems} {terms.isStore ? 'منتج' : 'عنصر'} • 📞 {branch.ph || mainRest.ph}
-                      {branch.address ? ` • 📍 ${branch.address}` : ''}
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        <b style={{ fontSize: '15px', color: 'var(--ink)' }}>{branchLabel}</b>
+                        {isManagingThis && (
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: 800,
+                              color: '#10b981',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                            }}
+                          >
+                            <CheckCircle2 size={12} /> نشط
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }} className="tabular-nums">
+                        {branchCats} أقسام · {branchItems} {terms.isStore ? 'منتج' : 'عنصر'}
+                      </div>
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                    {!isManagingThis && (
-                      <button
-                        type="button"
-                        onClick={() => switchActiveBranch(branch.id)}
-                        className="btn p s"
-                        style={{ fontWeight: 800 }}
-                      >
-                        {terms.isStore ? 'إدارة متجر هذا الفرع' : 'إدارة منيو هذا الفرع'}
-                      </button>
-                    )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                     <button
                       type="button"
-                      onClick={() => cloneMainMenuToBranch(branch.id, branchLabel)}
+                      onClick={() => openRenameModal(branch.id, branchLabel, false)}
                       className="btn s"
-                      title={terms.isStore ? 'استيراد نسخة من منتجات الفرع الرئيسي' : 'استيراد نسخة من منيو الفرع الرئيسي'}
+                      style={{ minHeight: '38px', fontWeight: 700 }}
                     >
-                      <RefreshCw size={14} />
-                      <span>{terms.isStore ? 'نسخ منتجات الرئيسي هنا' : 'نسخ منيو الرئيسي هنا'}</span>
+                      <Edit2 size={14} />
+                      <span>تعديل الاسم</span>
                     </button>
-                    <button type="button" onClick={() => copyLink(branchUrl)} className="btn s">
-                      <Copy size={14} />
-                      <span>الرابط</span>
-                    </button>
-                    {getFullSubdomainUrl(branch, site, resolvedPlan) ? (
-                      <a
-                        href={branchUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn s"
-                        style={{ textDecoration: 'none' }}
-                      >
-                        <ExternalLink size={14} />
-                        <span>فتح</span>
-                      </a>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => onNavigate(getPublicMenuUrlPath(branch, resolvedPlan))}
-                        className="btn s"
-                      >
-                        <ExternalLink size={14} />
-                        <span>فتح</span>
-                      </button>
-                    )}
+                    {renderOpenMenuAction(branch)}
                     <button
                       type="button"
                       onClick={() => deleteBranch(branch.id, branchLabel)}
                       className="btn s d"
+                      style={{ minHeight: '38px', fontWeight: 700 }}
                       title="حذف الفرع"
                     >
                       <Trash2 size={14} />
+                      <span>حذف</span>
                     </button>
                   </div>
                 </motion.div>
@@ -339,6 +399,103 @@ export const BranchesPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Rename Branch Modal */}
+      <AnimatePresence>
+        {editingBranch && (
+          <motion.div
+            initial={prefersReducedMotion ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={prefersReducedMotion ? undefined : { opacity: 0 }}
+            transition={{ duration: 0.45, ease: DASH_EASE }}
+            onClick={() => setEditingBranch(null)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 9999,
+              background: 'rgba(0, 0, 0, 0.58)',
+              backdropFilter: 'blur(6px)',
+              WebkitBackdropFilter: 'blur(6px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '16px',
+            }}
+          >
+            <motion.form
+              onSubmit={handleRenameSubmit}
+              onClick={(e) => e.stopPropagation()}
+              {...dashModalMotion(prefersReducedMotion)}
+              style={{
+                ...surfaceCardStyle,
+                width: '100%',
+                maxWidth: '420px',
+                borderRadius: '18px',
+                padding: '20px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '14px',
+                boxShadow: '0 24px 60px rgba(0, 0, 0, 0.35)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 900, color: 'var(--ink)' }}>
+                  تعديل اسم الفرع
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setEditingBranch(null)}
+                  aria-label="إغلاق"
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '10px',
+                    border: '1px solid var(--line)',
+                    background: 'color-mix(in srgb, var(--surface) 40%, transparent)',
+                    color: 'var(--muted)',
+                    display: 'grid',
+                    placeItems: 'center',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <label className="f" style={{ margin: 0 }}>
+                اسم الفرع الجديد *
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  style={themedInputStyle}
+                />
+              </label>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setEditingBranch(null)}
+                  className="btn s"
+                  disabled={isRenaming}
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  className="btn p"
+                  disabled={isRenaming}
+                  style={{ fontWeight: 800 }}
+                >
+                  <span>{isRenaming ? 'جاري الحفظ...' : 'حفظ الاسم'}</span>
+                </button>
+              </div>
+            </motion.form>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Create New Branch Modal */}
       <AnimatePresence>

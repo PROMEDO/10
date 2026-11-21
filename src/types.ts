@@ -443,6 +443,8 @@ export interface RestaurantAddons {
     discountValue?: number;
     discountText?: string;
     endHour?: number;
+    minOrderAmount?: number;
+    maxDiscountAmount?: number;
   };
   customerReviews?: {
     configured?: boolean;
@@ -454,6 +456,7 @@ export interface RestaurantAddons {
     configured?: boolean;
     enabled?: boolean;
     amount?: number;
+    maxAmount?: number;
     message?: string;
   };
   audioBell?: {
@@ -469,6 +472,8 @@ export interface RestaurantAddons {
     startHour?: number;
     endHour?: number;
     discountPercent?: number;
+    minOrderAmount?: number;
+    maxDiscountAmount?: number;
   };
   limitedTimeDiscount?: {
     configured?: boolean;
@@ -477,6 +482,8 @@ export interface RestaurantAddons {
     durationDays?: number;
     startsAt?: number;
     expiresAt?: number;
+    minOrderAmount?: number;
+    maxDiscountAmount?: number;
   };
   freeGiftThreshold?: {
     configured?: boolean;
@@ -512,12 +519,15 @@ export interface RestaurantAddons {
     enabled?: boolean;
     discountPercent?: number;
     title?: string;
+    minOrderAmount?: number;
+    maxDiscountAmount?: number;
   };
   freeDeliveryProgress?: {
     configured?: boolean;
     enabled?: boolean;
     label?: string;
     minAmount?: number;
+    maxDiscountAmount?: number;
   };
   whatsappSupportFloat?: {
     configured?: boolean;
@@ -535,6 +545,8 @@ export interface RestaurantAddons {
     enabled?: boolean;
     title?: string;
     discountPercent?: number;
+    minOrderAmount?: number;
+    maxDiscountAmount?: number;
   };
   moodMealFinder?: {
     configured?: boolean;
@@ -814,6 +826,7 @@ export interface Order {
   origSubtotal?: number;
   itemsDiscountTotal?: number;
   menuDiscountLabel?: string;
+  menuOrderDiscount?: number;
   firstOrderDiscount?: number;
   firstOrderDiscountPct?: number;
   spinDiscount?: number;

@@ -4,6 +4,7 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   AlertCircle,
   AlertTriangle,
@@ -605,34 +606,725 @@ export const UnifiedPartnersAccountsSection: React.FC<UnifiedPartnersAccountsSec
     );
   };
 
+  const actionModalContent =
+    actionTarget && typeof document !== 'undefined'
+      ? createPortal(
+          <div className="mp-act-backdrop" onClick={() => setActionTarget(null)}>
+            <div
+              className="mp-act-modal-box"
+              dir="rtl"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+            >
+              {/* Modal Header */}
+              <div className="mp-act-modal-head">
+                <div className="mp-act-modal-title-wrap">
+                  <h3>{actionTarget.projectName || actionTarget.name}</h3>
+                  <div className="mp-act-modal-sub">
+                    <span className="tabular-nums" dir="ltr">
+                      {actionTarget.phone}
+                    </span>
+                    {actionTarget.planName && <span>· {actionTarget.planName}</span>}
+                  </div>
+                </div>
+                <div className="mp-act-modal-head-btns">
+                  {actionView !== 'menu' && (
+                    <button
+                      type="button"
+                      className="btn s mp-act-head-btn"
+                      onClick={() => {
+                        setModalError('');
+                        setActionView('menu');
+                      }}
+                    >
+                      <ArrowRight size={14} />
+                      <span>رجوع</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="btn s mp-act-head-close"
+                    onClick={() => setActionTarget(null)}
+                    aria-label="إغلاق"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Scrollable Body */}
+              <div className="mp-act-modal-body">
+                {modalError && (
+                  <div className="mp-act-error" role="alert">
+                    <AlertCircle size={15} style={{ flexShrink: 0 }} />
+                    <span>{modalError}</span>
+                  </div>
+                )}
+
+                {/* VIEW 0: ACTION BUTTONS MENU */}
+                {actionView === 'menu' && (
+                  <div className="mp-act-menu-stack">
+                    {!actionTarget.isProtected &&
+                      actionTarget.role !== 'admin' &&
+                      (canEditPartnerPlan || canExtendSubscription) && (
+                        <button
+                          type="button"
+                          className="mp-act-primary-cta"
+                          onClick={() => setActionView('plan')}
+                        >
+                          <span className="mp-act-primary-cta-main">
+                            <span className="mp-act-primary-cta-ico">
+                              <Crown size={17} />
+                            </span>
+                            <span>ترقية / تغيير الباقة والمدة</span>
+                          </span>
+                          <span className="mp-act-primary-cta-badge">إدارة الاشتراك</span>
+                        </button>
+                      )}
+
+                    <div className="mp-act-tile-grid">
+                      {canEditPartnerProfile && (
+                        <button
+                          type="button"
+                          className="mp-act-tile-btn"
+                          onClick={() => setActionView('edit')}
+                        >
+                          <span className="mp-act-tile-btn-ico">
+                            <Pencil size={15} />
+                          </span>
+                          <span>تعديل البيانات وكلمة المرور</span>
+                        </button>
+                      )}
+
+                      {actionTarget.rid && canEditPartnerLinks && (
+                        <button
+                          type="button"
+                          className="mp-act-tile-btn"
+                          onClick={() => setActionView('links')}
+                        >
+                          <span className="mp-act-tile-btn-ico">
+                            <Link2 size={15} />
+                          </span>
+                          <span>رابط المنيو والسوشيال ميديا</span>
+                        </button>
+                      )}
+
+                      {actionTarget.rid && canImpersonatePartner && (
+                        <button
+                          type="button"
+                          className="mp-act-tile-btn"
+                          onClick={() => {
+                            const rid = actionTarget.rid!;
+                            setActionTarget(null);
+                            void handleImpersonate(rid);
+                          }}
+                        >
+                          <span className="mp-act-tile-btn-ico">
+                            <KeyRound size={15} />
+                          </span>
+                          <span>فتح لوحة تحكم الحساب</span>
+                        </button>
+                      )}
+
+                      {actionTarget.rid && (
+                        <button
+                          type="button"
+                          className="mp-act-tile-btn"
+                          onClick={() => {
+                            const slugOrRid =
+                              actionTarget.rid === 'demo' && !actionTarget.slug
+                                ? 'cap-burger'
+                                : actionTarget.slug || actionTarget.rid!;
+                            setActionTarget(null);
+                            onNavigate(`/${slugOrRid}`);
+                          }}
+                        >
+                          <span className="mp-act-tile-btn-ico">
+                            <Eye size={15} />
+                          </span>
+                          <span>معاينة المنيو العام</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {((!actionTarget.isProtected &&
+                      actionTarget.role !== 'telegram_only' &&
+                      canSuspendPartner) ||
+                      (!actionTarget.isProtected &&
+                        !(
+                          actionTarget.isCurrentUser ||
+                          (session.accountId && actionTarget.id === session.accountId)
+                        ) &&
+                        canDeletePartner)) && (
+                      <>
+                        <div className="mp-act-divider" />
+                        <div className="mp-act-danger-grid">
+                          {!actionTarget.isProtected &&
+                            actionTarget.role !== 'telegram_only' &&
+                            canSuspendPartner && (
+                              <button
+                                type="button"
+                                className={`mp-act-danger-btn${actionTarget.active ? '' : ' is-restore'}`}
+                                disabled={isSavingAction}
+                                onClick={() => void handleToggleSuspend()}
+                              >
+                                {actionTarget.active ? <Ban size={15} /> : <CheckCircle2 size={15} />}
+                                <span>{actionTarget.active ? 'إيقاف الحساب مؤقتاً' : 'تفعيل الحساب'}</span>
+                              </button>
+                            )}
+
+                          {!actionTarget.isProtected &&
+                            !(
+                              actionTarget.isCurrentUser ||
+                              (session.accountId && actionTarget.id === session.accountId)
+                            ) &&
+                            canDeletePartner && (
+                              <button
+                                type="button"
+                                className="mp-act-danger-btn"
+                                onClick={() => {
+                                  setConfirmRealOwnerDelete(false);
+                                  setActionView('delete');
+                                }}
+                              >
+                                <Trash2 size={15} />
+                                <span>حذف الحساب نهائياً</span>
+                              </button>
+                            )}
+                        </div>
+                      </>
+                    )}
+
+                    {(actionTarget.isProtected ||
+                      actionTarget.isCurrentUser ||
+                      (session.accountId && actionTarget.id === session.accountId)) && (
+                      <div className="mp-act-protected-note">
+                        <Shield size={14} style={{ flexShrink: 0 }} />
+                        <span>
+                          {actionTarget.isProtected
+                            ? 'حساب مالك المنصة الرئيسي محمي من الإيقاف أو الحذف'
+                            : 'هذا حسابك النشط حالياً ولا يمكن حذفه أثناء استخدامه'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* VIEW 1: GRANT PLAN & DURATION */}
+                {actionView === 'plan' && (
+                  <div className="mp-act-subview">
+                    <div className="mp-act-form-grid">
+                      <label className="f mp-act-field">
+                        <span>اختر الباقة</span>
+                        <select
+                          value={grantPlanId}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setGrantPlanId(val);
+                            const pl = plans.find((x) => x.id === val || x.n === val);
+                            if (pl) setGrantIsPaid(pl.pr > 0);
+                          }}
+                        >
+                          {plans.map((pl) => (
+                            <option key={pl.id} value={pl.id}>
+                              {pl.n} ({formatNumber(pl.pr)} د.ع)
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="f mp-act-field">
+                        <span>المدة بالأيام</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={3650}
+                          dir="ltr"
+                          value={grantDurationDays}
+                          onChange={(e) => setGrantDurationDays(Math.max(1, Number(e.target.value) || 30))}
+                        />
+                      </label>
+                    </div>
+
+                    <div className="mp-act-presets">
+                      {DURATION_PRESETS.map((preset) => (
+                        <button
+                          key={preset.days}
+                          type="button"
+                          className={`mp-act-preset-btn${grantDurationDays === preset.days ? ' is-active' : ''}`}
+                          onClick={() => setGrantDurationDays(preset.days)}
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="mp-act-footer is-split">
+                      <label className="mp-act-check">
+                        <input
+                          type="checkbox"
+                          checked={grantIsPaid}
+                          onChange={(e) => setGrantIsPaid(e.target.checked)}
+                        />
+                        <span>تصنيف الاشتراك: مدفوع</span>
+                      </label>
+
+                      <button
+                        type="button"
+                        className="btn p mp-act-submit"
+                        disabled={isSavingAction}
+                        onClick={() => void handleGrantPlanAndDuration()}
+                      >
+                        {isSavingAction ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
+                        <span>تفعيل الباقة ({grantDurationDays} يوم)</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* VIEW 2: EDIT ACCOUNT & PROJECT DETAILS */}
+                {actionView === 'edit' && (
+                  <form className="mp-act-subview" onSubmit={(e) => void handleSaveAccountDetails(e)}>
+                    <div className="mp-act-form-grid">
+                      <label className="f mp-act-field">
+                        <span>رقم الهاتف</span>
+                        <input
+                          type="tel"
+                          dir="ltr"
+                          value={editPhone}
+                          onChange={(e) => setEditPhone(e.target.value)}
+                          placeholder="0770..."
+                        />
+                      </label>
+
+                      <label className="f mp-act-field">
+                        <span>اسم المشروع</span>
+                        <input
+                          type="text"
+                          value={editProjectName}
+                          onChange={(e) => setEditProjectName(e.target.value)}
+                          placeholder="اسم المطعم أو المتجر"
+                        />
+                      </label>
+
+                      <label className="f mp-act-field">
+                        <span>نوع المشروع</span>
+                        <select value={editProjectType} onChange={(e) => setEditProjectType(e.target.value)}>
+                          {PROJECT_TYPE_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="f mp-act-field">
+                        <span>اسم صاحب الحساب</span>
+                        <input
+                          type="text"
+                          value={editOwnerName}
+                          onChange={(e) => setEditOwnerName(e.target.value)}
+                          placeholder="الاسم الكامل"
+                        />
+                      </label>
+
+                      {!actionTarget.isProtected && actionTarget.role !== 'telegram_only' && (
+                        <label className="f mp-act-field">
+                          <span>صلاحية الحساب</span>
+                          <select
+                            value={editRole}
+                            onChange={(e) => setEditRole(e.target.value as 'admin' | 'partner')}
+                          >
+                            <option value="partner">شريك متجر</option>
+                            <option value="admin">مدير منصة</option>
+                          </select>
+                        </label>
+                      )}
+
+                      <label className="f mp-act-field">
+                        <span>كلمة مرور جديدة (اختياري)</span>
+                        <input
+                          type="password"
+                          dir="ltr"
+                          value={editNewPassword}
+                          onChange={(e) => setEditNewPassword(e.target.value)}
+                          placeholder="اتركه فارغاً للإبقاء"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="mp-act-footer">
+                      <button type="submit" className="btn p mp-act-submit" disabled={isSavingAction}>
+                        {isSavingAction ? <Loader2 size={14} className="animate-spin" /> : null}
+                        <span>حفظ التعديلات</span>
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {/* VIEW 3: EDIT MENU SLUG, SUBDOMAIN & SOCIAL LINKS */}
+                {actionView === 'links' && (
+                  <form className="mp-act-subview" onSubmit={(e) => void handleSavePartnerLinks(e)}>
+                    <div className="mp-act-form-grid">
+                      <label className="f mp-act-field">
+                        <span>معرّف الرابط (Slug)</span>
+                        <input
+                          type="text"
+                          dir="ltr"
+                          value={editSlug}
+                          onChange={(e) =>
+                            setEditSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))
+                          }
+                          placeholder="my-store"
+                        />
+                      </label>
+                      <label className="f mp-act-field">
+                        <span>النطاق الفرعي (Subdomain)</span>
+                        <input
+                          type="text"
+                          dir="ltr"
+                          value={editSubdomain}
+                          onChange={(e) =>
+                            setEditSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))
+                          }
+                          placeholder="my-store"
+                        />
+                      </label>
+                      <label className="f mp-act-field">
+                        <span>انستغرام (Instagram)</span>
+                        <input
+                          dir="ltr"
+                          value={editInstagram}
+                          onChange={(e) => setEditInstagram(e.target.value)}
+                          placeholder="https://instagram.com/..."
+                        />
+                      </label>
+                      <label className="f mp-act-field">
+                        <span>فيسبوك (Facebook)</span>
+                        <input
+                          dir="ltr"
+                          value={editFacebook}
+                          onChange={(e) => setEditFacebook(e.target.value)}
+                          placeholder="https://facebook.com/..."
+                        />
+                      </label>
+                      <label className="f mp-act-field">
+                        <span>تيك توك (TikTok)</span>
+                        <input
+                          dir="ltr"
+                          value={editTiktok}
+                          onChange={(e) => setEditTiktok(e.target.value)}
+                          placeholder="https://tiktok.com/@..."
+                        />
+                      </label>
+                      <label className="f mp-act-field">
+                        <span>إكس / تويتر (X)</span>
+                        <input
+                          dir="ltr"
+                          value={editX}
+                          onChange={(e) => setEditX(e.target.value)}
+                          placeholder="https://x.com/..."
+                        />
+                      </label>
+                      <label className="f mp-act-field is-full">
+                        <span>واتساب التواصل</span>
+                        <input
+                          dir="ltr"
+                          value={editWhatsapp}
+                          onChange={(e) => setEditWhatsapp(e.target.value)}
+                          placeholder="0770..."
+                        />
+                      </label>
+                    </div>
+
+                    <div className="mp-act-footer">
+                      <button type="submit" className="btn p mp-act-submit" disabled={isSavingAction}>
+                        {isSavingAction ? <Loader2 size={14} className="animate-spin" /> : null}
+                        <span>حفظ الرابط والتواصل</span>
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {/* VIEW 4: CONFIRM PHYSICAL DELETE */}
+                {actionView === 'delete' &&
+                  (() => {
+                    const isRealMenuOwner = Boolean(
+                      actionTarget.hasOwnedMenu ||
+                        (actionTarget.role === 'partner' &&
+                          actionTarget.rid &&
+                          actionTarget.rid !== 'demo')
+                    );
+                    const isSelfRegistered = Boolean(actionTarget.isSelfRegisteredMenuOwner);
+
+                    return (
+                      <div className="mp-danger-banner">
+                        <div className="mp-danger-head">
+                          <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: '2px' }} />
+                          <div>
+                            <div style={{ fontSize: '14px', fontWeight: 800 }}>
+                              {isRealMenuOwner
+                                ? 'تأكيد أخير: هذا الحساب يمتلك منيو حقيقي'
+                                : 'هل أنت متأكد من الحذف النهائي لهذا الحساب؟'}
+                            </div>
+                            <div style={{ fontSize: '12.5px', opacity: 0.9, marginTop: '3px', lineHeight: 1.55 }}>
+                              {isRealMenuOwner
+                                ? isSelfRegistered
+                                  ? 'هذا الزبون سجّل بنفسه ويمتلك منيو فعلي في المنصة.'
+                                  : 'يوجد مشروع ومنيو مرتبط بهذا الحساب سيتم حذفه نهائياً.'
+                                : 'سيتم حذف الحساب والمتجر من المنصة فقط مع الإبقاء على توثيق الرقم في قاعدة بيانات تيليجرام.'}
+                            </div>
+                          </div>
+                        </div>
+
+                        {isRealMenuOwner && (
+                          <>
+                            <div className="mp-danger-meta">
+                              <div>
+                                <span className="muted" style={{ display: 'block', fontSize: '11.5px' }}>
+                                  المشروع
+                                </span>
+                                <b>{actionTarget.projectName || actionTarget.restaurantName || actionTarget.name}</b>
+                              </div>
+                              <div>
+                                <span className="muted" style={{ display: 'block', fontSize: '11.5px' }}>
+                                  الباقة
+                                </span>
+                                <b>{actionTarget.planName || 'الباقة الاقتصادية'}</b>
+                              </div>
+                              <div style={{ gridColumn: '1 / -1' }}>
+                                <span className="muted" style={{ display: 'block', fontSize: '11.5px' }}>
+                                  حالة المنيو
+                                </span>
+                                <b>{actionTarget.done === 1 ? 'مكتمل ومفعّل' : 'قيد الإعداد'}</b>
+                                {typeof actionTarget.itemsCount === 'number' && (
+                                  <span className="muted tabular-nums">
+                                    {` · ${actionTarget.catsCount || 0} قسم · ${actionTarget.itemsCount} صنف · ${actionTarget.ordersCount || 0} طلب`}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <label className={`mp-confirm-check${confirmRealOwnerDelete ? ' is-checked' : ''}`}>
+                              <input
+                                type="checkbox"
+                                checked={confirmRealOwnerDelete}
+                                onChange={(e) => setConfirmRealOwnerDelete(e.target.checked)}
+                              />
+                              <span>أؤكد أن هذا الحساب ليس مهماً لي وأريد حذفه مع المنيو نهائياً</span>
+                            </label>
+                          </>
+                        )}
+
+                        <div className="mp-act-footer">
+                          <button
+                            type="button"
+                            className="btn s"
+                            onClick={() => {
+                              setConfirmRealOwnerDelete(false);
+                              setActionView('menu');
+                            }}
+                          >
+                            إلغاء
+                          </button>
+                          <button
+                            type="button"
+                            className="btn s p d"
+                            disabled={isDeleting || (isRealMenuOwner && !confirmRealOwnerDelete)}
+                            onClick={() => void handleConfirmDelete()}
+                          >
+                            {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                            <span>
+                              {isRealMenuOwner ? 'تأكيد الحذف النهائي للمشروع والحساب' : 'تأكيد الحذف النهائي'}
+                            </span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
+              </div>
+            </div>
+          </div>,
+          document.body
+        )
+      : null;
+
+  const addModalContent =
+    showAddModal && typeof document !== 'undefined'
+      ? createPortal(
+          <div className="mp-act-backdrop" onClick={() => setShowAddModal(false)}>
+            <div
+              className="mp-act-modal-box"
+              dir="rtl"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+            >
+              <div className="mp-act-modal-head">
+                <div className="mp-act-modal-title-wrap">
+                  <h3>إضافة حساب ومشروع جديد</h3>
+                  <div className="mp-act-modal-sub">
+                    <span>إنشاء حساب شريك جديد وتفعيل باقته فوراً</span>
+                  </div>
+                </div>
+                <div className="mp-act-modal-head-btns">
+                  <button
+                    type="button"
+                    className="btn s mp-act-head-close"
+                    onClick={() => setShowAddModal(false)}
+                    aria-label="إغلاق"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="mp-act-modal-body">
+                {addError && (
+                  <div className="mp-act-error" role="alert">
+                    <AlertCircle size={15} style={{ flexShrink: 0 }} />
+                    <span>{addError}</span>
+                  </div>
+                )}
+
+                <form className="mp-act-subview" onSubmit={(e) => void handleAddPartnerSubmit(e)}>
+                  <div className="mp-act-form-grid">
+                    <label className="f mp-act-field">
+                      <span>رقم الهاتف</span>
+                      <input
+                        type="tel"
+                        dir="ltr"
+                        value={newPhone}
+                        onChange={(e) => setNewPhone(e.target.value)}
+                        placeholder="07701234567"
+                      />
+                    </label>
+
+                    <label className="f mp-act-field">
+                      <span>اسم المشروع *</span>
+                      <input
+                        type="text"
+                        value={newProjectName}
+                        onChange={(e) => setNewProjectName(e.target.value)}
+                        placeholder="اسم المطعم أو المتجر"
+                        required
+                      />
+                    </label>
+
+                    <label className="f mp-act-field">
+                      <span>نوع المشروع</span>
+                      <select value={newProjectType} onChange={(e) => setNewProjectType(e.target.value)}>
+                        {PROJECT_TYPE_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="f mp-act-field">
+                      <span>اسم المسؤول / المالك</span>
+                      <input
+                        type="text"
+                        value={newOwnerName}
+                        onChange={(e) => setNewOwnerName(e.target.value)}
+                        placeholder="اختياري"
+                      />
+                    </label>
+
+                    <label className="f mp-act-field">
+                      <span>الباقة</span>
+                      <select
+                        value={newPlanId}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setNewPlanId(val);
+                          const pl = plans.find((x) => x.id === val || x.n === val);
+                          if (pl) setNewIsPaid(pl.pr > 0);
+                        }}
+                      >
+                        {plans.map((pl) => (
+                          <option key={pl.id} value={pl.id}>
+                            {pl.n} ({formatNumber(pl.pr)} د.ع)
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="f mp-act-field">
+                      <span>مدة الباقة (أيام)</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={3650}
+                        dir="ltr"
+                        value={newDurationDays}
+                        onChange={(e) => setNewDurationDays(Math.max(1, Number(e.target.value) || 30))}
+                      />
+                    </label>
+
+                    <label className="f mp-act-field is-full">
+                      <span>كلمة مرور الدخول للحساب (اختياري)</span>
+                      <input
+                        type="password"
+                        dir="ltr"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="8 خانات فأكثر (أرقام أو أحرف أو رموز)"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="mp-act-footer is-split">
+                    <label className="mp-act-check">
+                      <input
+                        type="checkbox"
+                        checked={newIsPaid}
+                        onChange={(e) => setNewIsPaid(e.target.checked)}
+                      />
+                      <span>اشتراك مدفوع</span>
+                    </label>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button type="button" className="btn s" onClick={() => setShowAddModal(false)}>
+                        إلغاء
+                      </button>
+                      <button type="submit" className="btn p mp-act-submit" disabled={isAdding}>
+                        {isAdding ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
+                        <span>حفظ وإضافة الحساب</span>
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )
+      : null;
+
   return (
-    <div>
+    <div className="mp-acc-page">
       {/* Header Row */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '10px',
-          marginBottom: '12px',
-        }}
-      >
-        <div>
-          <h1 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: 'clamp(18px, 3vw, 22px)', color: 'var(--ink)' }}>
-            <Users size={20} style={{ color: 'var(--brand-ink, #34D399)' }} />
+      <div className="mp-acc-head">
+        <div className="mp-acc-head-text">
+          <h1>
+            <span className="mp-acc-head-ico">
+              <Users size={19} />
+            </span>
             <span>{pageTitle || 'الشركاء والحسابات'}</span>
           </h1>
-          <p className="muted" style={{ margin: '3px 0 0', fontSize: '12px' }}>
+          <p className="muted">
             إدارة حسابات الشركاء والإدارة المسجلة، الفلاتر، والباقات والصلاحيات.
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+        <div className="mp-acc-head-actions">
           {canCreatePartner && (
             <button
               type="button"
-              className="btn s p"
+              className="btn s p mp-acc-add-btn"
               onClick={() => {
                 setNewPlanId(plans[0]?.id || 'starter');
                 setNewDurationDays(30);
@@ -641,91 +1333,65 @@ export const UnifiedPartnersAccountsSection: React.FC<UnifiedPartnersAccountsSec
                 setShowAddModal(true);
               }}
             >
-              <Plus size={14} />
+              <Plus size={15} />
               <span>إضافة حساب</span>
             </button>
           )}
           <button
             type="button"
-            className="btn s"
+            className="btn s mp-acc-refresh-btn"
             onClick={() => void loadData()}
             disabled={isLoading}
             title="تحديث من قاعدة البيانات"
+            aria-label="تحديث البيانات"
           >
-            <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
+            <RefreshCw size={15} className={isLoading ? 'animate-spin' : ''} />
           </button>
         </div>
       </div>
 
-      {/* Single-Row Compact Summary Strip (Fits cleanly on 1 line on mobile!) */}
-      <div
-        className="accounts-kpi-strip"
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-          gap: '6px',
-          marginBottom: '12px',
-        }}
-      >
-        <div className="card" style={{ padding: '8px 6px', textAlign: 'center', borderRadius: '10px' }}>
-          <div style={{ fontSize: 'clamp(15px, 3.8vw, 20px)', fontWeight: 800, lineHeight: 1.15 }}>
-            {stats.total || records.length}
-          </div>
-          <div className="muted" style={{ fontSize: '10px', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            الكل
-          </div>
+      {/* Symmetrical 4-KPI Summary Grid */}
+      <div className="mp-acc-kpi-grid">
+        <div className="card mp-acc-kpi-card">
+          <span className="mp-acc-kpi-label">إجمالي الحسابات</span>
+          <strong className="mp-acc-kpi-val tabular-nums">{stats.total || records.length}</strong>
         </div>
-        <div className="card" style={{ padding: '8px 6px', textAlign: 'center', borderRadius: '10px' }}>
-          <div style={{ fontSize: 'clamp(15px, 3.8vw, 20px)', fontWeight: 800, lineHeight: 1.15, color: '#f59e0b' }}>
+        <div className="card mp-acc-kpi-card">
+          <span className="mp-acc-kpi-label">الاشتراكات المدفوعة</span>
+          <strong className="mp-acc-kpi-val tabular-nums" style={{ color: '#f59e0b' }}>
             {paidCount}
-          </div>
-          <div className="muted" style={{ fontSize: '10px', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            مدفوع
-          </div>
+          </strong>
         </div>
-        <div className="card" style={{ padding: '8px 6px', textAlign: 'center', borderRadius: '10px' }}>
-          <div style={{ fontSize: 'clamp(15px, 3.8vw, 20px)', fontWeight: 800, lineHeight: 1.15, color: 'var(--brand-ink, #34D399)' }}>
+        <div className="card mp-acc-kpi-card">
+          <span className="mp-acc-kpi-label">حسابات غير مكتملة</span>
+          <strong className="mp-acc-kpi-val tabular-nums" style={{ color: 'var(--brand-ink, #34D399)' }}>
             {incompleteCount}
-          </div>
-          <div className="muted" style={{ fontSize: '10px', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            غير مكتمل
-          </div>
+          </strong>
         </div>
-        <div className="card" style={{ padding: '8px 6px', textAlign: 'center', borderRadius: '10px' }}>
-          <div style={{ fontSize: 'clamp(15px, 3.8vw, 20px)', fontWeight: 800, lineHeight: 1.15, color: expiredCount > 0 ? 'var(--bad)' : 'var(--muted)' }}>
+        <div className="card mp-acc-kpi-card">
+          <span className="mp-acc-kpi-label">اشتراكات منتهية</span>
+          <strong
+            className="mp-acc-kpi-val tabular-nums"
+            style={{ color: expiredCount > 0 ? 'var(--bad)' : 'var(--muted)' }}
+          >
             {expiredCount}
-          </div>
-          <div className="muted" style={{ fontSize: '10px', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            منتهي
-          </div>
+          </strong>
         </div>
       </div>
 
-      {/* Search & Compact Filters Row */}
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '8px',
-          marginBottom: '12px',
-        }}
-      >
-        <div style={{ position: 'relative' }}>
-          <Search
-            size={14}
-            className="muted"
-            style={{ position: 'absolute', top: '50%', insetInlineStart: '11px', transform: 'translateY(-50%)', pointerEvents: 'none' }}
-          />
+      {/* Unified Search & Filter Toolbar */}
+      <div className="card mp-acc-toolbar">
+        <div className="mp-acc-search-wrap">
+          <Search size={15} className="mp-acc-search-ico" />
           <input
             type="search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="ابحث برقم الهاتف، اسم المشروع، الرابط..."
-            style={{ paddingInlineStart: '32px', width: '100%', fontSize: '13px', minHeight: '36px' }}
+            placeholder="ابحث برقم الهاتف، اسم المشروع، أو الرابط..."
           />
         </div>
 
-        <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+        <div className="mp-acc-filters">
           {([
             { id: 'all', label: `الكل (${records.length})` },
             { id: 'newest', label: 'الأحدث' },
@@ -737,18 +1403,8 @@ export const UnifiedPartnersAccountsSection: React.FC<UnifiedPartnersAccountsSec
             <button
               key={f.id}
               type="button"
+              className={`mp-acc-filter-btn${filterType === f.id ? ' is-active' : ''}`}
               onClick={() => setFilterType(f.id)}
-              style={{
-                padding: '4px 9px',
-                minHeight: '28px',
-                fontSize: '11.5px',
-                fontWeight: 700,
-                borderRadius: '8px',
-                cursor: 'pointer',
-                border: filterType === f.id ? '1px solid var(--brand)' : '1px solid var(--line)',
-                background: filterType === f.id ? 'var(--brand)' : 'color-mix(in srgb, var(--surface) 40%, transparent)',
-                color: filterType === f.id ? 'var(--on-brand)' : 'var(--ink)',
-              }}
             >
               {f.label}
             </button>
@@ -760,7 +1416,6 @@ export const UnifiedPartnersAccountsSection: React.FC<UnifiedPartnersAccountsSec
         <div
           className="card"
           style={{
-            marginBottom: '12px',
             borderColor: 'rgba(239, 68, 68, 0.45)',
             background: 'rgba(239, 68, 68, 0.08)',
             display: 'flex',
@@ -774,27 +1429,27 @@ export const UnifiedPartnersAccountsSection: React.FC<UnifiedPartnersAccountsSec
         </div>
       )}
 
-      {/* Desktop Unified Table */}
-      <div className="card tw desktop-only-table" style={{ padding: 0, overflow: 'hidden' }}>
+      {/* Desktop Symmetrical Table */}
+      <div className="card tw desktop-only-table mp-acc-table-card">
         {isLoading ? (
-          <div style={{ padding: '36px', textAlign: 'center', color: 'var(--muted)' }}>
+          <div style={{ padding: '40px', textAlign: 'center', color: 'var(--muted)' }}>
             <Loader2 size={22} className="animate-spin" style={{ margin: '0 auto 8px' }} />
             <div>جاري تحميل الحسابات...</div>
           </div>
         ) : (
-          <table>
+          <table className="mp-acc-table">
             <thead>
               <tr>
-                <th>رقم الهاتف</th>
-                <th>اسم المشروع</th>
-                <th>الاشتراك والحالة</th>
-                <th style={{ width: '160px' }}>اتخذ إجراء</th>
+                <th style={{ width: '21%' }}>رقم الهاتف</th>
+                <th style={{ width: '25%' }}>اسم المشروع</th>
+                <th style={{ width: '28%' }}>الاشتراك والحالة</th>
+                <th style={{ width: '26%', textAlign: 'end' }}>الإجراءات</th>
               </tr>
             </thead>
             <tbody>
               {filteredRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={4} style={{ textAlign: 'center', padding: '24px', color: 'var(--muted)' }}>
+                  <td colSpan={4} style={{ textAlign: 'center', padding: '28px', color: 'var(--muted)' }}>
                     لا توجد حسابات مطابقة للفلتر أو البحث الحالي.
                   </td>
                 </tr>
@@ -808,10 +1463,10 @@ export const UnifiedPartnersAccountsSection: React.FC<UnifiedPartnersAccountsSec
                           {item.phone}
                         </b>
                       </div>
-                      <div className="muted" style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                      <div className="muted mp-acc-owner-meta">
                         <span>{item.name}</span>
                         {item.telegramLinked && (
-                          <span style={{ color: '#38bdf8', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                          <span className="mp-acc-tg-tag">
                             <Send size={10} />
                             تيليجرام
                           </span>
@@ -820,10 +1475,12 @@ export const UnifiedPartnersAccountsSection: React.FC<UnifiedPartnersAccountsSec
                     </td>
 
                     <td>
-                      <b style={{ fontSize: '13.5px' }}>
-                        {item.projectName || item.restaurantName || (item.role === 'admin' ? 'إدارة المنصة' : 'بدون مشروع')}
+                      <b style={{ fontSize: '13.5px', display: 'block' }}>
+                        {item.projectName ||
+                          item.restaurantName ||
+                          (item.role === 'admin' ? 'إدارة المنصة' : 'بدون مشروع')}
                       </b>
-                      <div className="muted tabular-nums" style={{ fontSize: '11px', marginTop: '2px' }}>
+                      <div className="muted tabular-nums" style={{ fontSize: '11.5px', marginTop: '3px' }}>
                         {item.registrationDate ? `مسجل: ${item.registrationDate}` : ''}
                         {item.slug ? ` · /${item.slug}` : ''}
                       </div>
@@ -832,23 +1489,17 @@ export const UnifiedPartnersAccountsSection: React.FC<UnifiedPartnersAccountsSec
                     <td>{renderSubscriptionCell(item)}</td>
 
                     <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                      <div className="mp-acc-actions-cell">
                         {item.rid && canImpersonatePartner && (
                           <button
                             type="button"
-                            className="btn s"
+                            className="btn s mp-acc-login-btn"
                             disabled={Boolean(impersonatingRid)}
                             onClick={() => handleImpersonate(item.rid!)}
                             title="دخول سريع للوحة التحكم"
-                            style={{
-                              fontWeight: 800,
-                              background: 'color-mix(in srgb, var(--brand) 14%, transparent)',
-                              color: 'var(--brand)',
-                              border: '1px solid color-mix(in srgb, var(--brand) 32%, transparent)',
-                            }}
                           >
                             {impersonatingRid === item.rid ? (
-                              <Loader2 size={13} className="spin" />
+                              <Loader2 size={13} className="animate-spin" />
                             ) : (
                               <KeyRound size={13} />
                             )}
@@ -857,17 +1508,22 @@ export const UnifiedPartnersAccountsSection: React.FC<UnifiedPartnersAccountsSec
                         )}
                         <button
                           type="button"
-                          className="btn s p"
+                          className="btn s p mp-acc-do-btn"
                           onClick={() => openActionModal(item)}
-                          style={{ fontWeight: 700 }}
                         >
                           اتخذ إجراء
                         </button>
                         {item.rid && (
                           <button
                             type="button"
-                            className="btn s"
-                            onClick={() => onNavigate(item.rid === 'demo' && !item.slug ? '/cap-burger' : `/${item.slug || item.rid}`)}
+                            className="btn s mp-acc-eye-btn"
+                            onClick={() =>
+                              onNavigate(
+                                item.rid === 'demo' && !item.slug
+                                  ? '/cap-burger'
+                                  : `/${item.slug || item.rid}`
+                              )
+                            }
                             title="فتح المنيو"
                             aria-label="فتح المنيو"
                           >
@@ -885,7 +1541,7 @@ export const UnifiedPartnersAccountsSection: React.FC<UnifiedPartnersAccountsSec
       </div>
 
       {/* Mobile Cards */}
-      <div className="mobile-cards-only">
+      <div className="mobile-cards-only mp-acc-mobile-list">
         {isLoading ? (
           <div className="card" style={{ textAlign: 'center', padding: '24px', color: 'var(--muted)' }}>
             جاري التحميل...
@@ -896,47 +1552,48 @@ export const UnifiedPartnersAccountsSection: React.FC<UnifiedPartnersAccountsSec
           </div>
         ) : (
           filteredRecords.map((item) => (
-            <div key={item.id} className="card" style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                    {item.isProtected && <Crown size={13} style={{ color: '#f59e0b' }} />}
-                    <b className="tabular-nums" dir="ltr" style={{ fontSize: '13.5px' }}>
-                      {item.phone}
+            <div key={item.id} className="card mp-acc-mobile-card">
+              <div className="mp-acc-mobile-top">
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div className="mp-acc-mobile-project">
+                    {item.isProtected && <Crown size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />}
+                    <b>
+                      {item.projectName ||
+                        item.restaurantName ||
+                        (item.role === 'admin' ? 'إدارة المنصة' : item.name)}
                     </b>
                   </div>
-                  <div style={{ fontWeight: 700, fontSize: '14px', marginTop: '2px' }}>
-                    {item.projectName || item.restaurantName || item.name}
+                  <div className="mp-acc-owner-meta muted">
+                    <span className="tabular-nums" dir="ltr">
+                      {item.phone}
+                    </span>
+                    {item.telegramLinked && (
+                      <span className="mp-acc-tg-tag">
+                        <Send size={10} />
+                        تيليجرام
+                      </span>
+                    )}
                   </div>
                 </div>
                 {item.registrationDate && (
-                  <span className="muted tabular-nums" style={{ fontSize: '10.5px' }} dir="ltr">
+                  <span className="muted tabular-nums mp-acc-mobile-date" dir="ltr">
                     {item.registrationDate}
                   </span>
                 )}
               </div>
 
-              <div style={{ paddingTop: '8px', borderTop: '1px solid var(--line)' }}>
-                {renderSubscriptionCell(item)}
-              </div>
+              <div className="mp-acc-mobile-status">{renderSubscriptionCell(item)}</div>
 
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+              <div className="mp-acc-mobile-actions">
                 {item.rid && canImpersonatePartner && (
                   <button
                     type="button"
-                    className="btn s"
+                    className="btn s mp-acc-login-btn"
                     disabled={Boolean(impersonatingRid)}
                     onClick={() => handleImpersonate(item.rid!)}
-                    style={{
-                      flex: 1,
-                      fontWeight: 800,
-                      background: 'color-mix(in srgb, var(--brand) 14%, transparent)',
-                      color: 'var(--brand)',
-                      border: '1px solid color-mix(in srgb, var(--brand) 32%, transparent)',
-                    }}
                   >
                     {impersonatingRid === item.rid ? (
-                      <Loader2 size={13} className="spin" />
+                      <Loader2 size={13} className="animate-spin" />
                     ) : (
                       <KeyRound size={13} />
                     )}
@@ -945,8 +1602,7 @@ export const UnifiedPartnersAccountsSection: React.FC<UnifiedPartnersAccountsSec
                 )}
                 <button
                   type="button"
-                  className="btn s p"
-                  style={{ flex: 1, fontWeight: 700 }}
+                  className="btn s p mp-acc-do-btn"
                   onClick={() => openActionModal(item)}
                 >
                   اتخذ إجراء
@@ -954,12 +1610,18 @@ export const UnifiedPartnersAccountsSection: React.FC<UnifiedPartnersAccountsSec
                 {item.rid && (
                   <button
                     type="button"
-                    className="btn s"
-                    onClick={() => onNavigate(item.rid === 'demo' && !item.slug ? '/cap-burger' : `/${item.slug || item.rid}`)}
+                    className="btn s mp-acc-eye-btn"
+                    onClick={() =>
+                      onNavigate(
+                        item.rid === 'demo' && !item.slug
+                          ? '/cap-burger'
+                          : `/${item.slug || item.rid}`
+                      )
+                    }
                     title="فتح المنيو"
                     aria-label="فتح المنيو"
                   >
-                    <Eye size={14} />
+                    <Eye size={15} />
                   </button>
                 )}
               </div>
@@ -968,648 +1630,8 @@ export const UnifiedPartnersAccountsSection: React.FC<UnifiedPartnersAccountsSec
         )}
       </div>
 
-      {/* Unified Action Modal ("اتخذ إجراء") — Clean Action Buttons Menu + Dedicated Sub-views */}
-      {actionTarget && (
-        <div className="ajax-backdrop" onClick={() => setActionTarget(null)}>
-          <div
-            className="ajax-box"
-            onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: '520px', textAlign: 'start', maxHeight: '90vh', overflowY: 'auto' }}
-          >
-            {/* Modal Header */}
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                gap: '10px',
-                paddingBottom: '10px',
-                marginBottom: '14px',
-                borderBottom: '1px solid var(--line)',
-              }}
-            >
-              <div style={{ minWidth: 0 }}>
-                <h3 style={{ margin: 0, fontSize: '16.5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {actionTarget.projectName || actionTarget.name}
-                </h3>
-                <div className="muted" style={{ fontSize: '12px', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                  <span className="tabular-nums" dir="ltr">{actionTarget.phone}</span>
-                  {actionTarget.planName && <span>· {actionTarget.planName}</span>}
-                </div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                {actionView !== 'menu' && (
-                  <button
-                    type="button"
-                    className="btn s"
-                    onClick={() => {
-                      setModalError('');
-                      setActionView('menu');
-                    }}
-                  >
-                    <ArrowRight size={14} />
-                    <span>رجوع</span>
-                  </button>
-                )}
-                <button type="button" className="btn s" onClick={() => setActionTarget(null)} aria-label="إغلاق">
-                  <X size={15} />
-                </button>
-              </div>
-            </div>
-
-            {modalError && (
-              <div
-                style={{
-                  marginBottom: '12px',
-                  padding: '9px 11px',
-                  borderRadius: '10px',
-                  background: 'rgba(239, 68, 68, 0.12)',
-                  border: '1px solid rgba(239, 68, 68, 0.35)',
-                  color: '#ef4444',
-                  fontSize: '12.5px',
-                }}
-              >
-                {modalError}
-              </div>
-            )}
-
-            {/* VIEW 0: ACTION BUTTONS MENU */}
-            {actionView === 'menu' && (
-              <div className="mp-modal-actions">
-                {!actionTarget.isProtected && actionTarget.role !== 'admin' && (canEditPartnerPlan || canExtendSubscription) && (
-                  <button
-                    type="button"
-                    className="mp-action-primary"
-                    onClick={() => setActionView('plan')}
-                  >
-                    <span className="mp-action-primary-main">
-                      <Crown size={17} />
-                      <span>ترقية / تغيير الباقة والمدة</span>
-                    </span>
-                    <span style={{ fontSize: '11.5px', opacity: 0.9 }}>إدارة الاشتراك</span>
-                  </button>
-                )}
-
-                <div className="mp-action-grid">
-                  {canEditPartnerProfile && (
-                    <button
-                      type="button"
-                      className="mp-action-tile"
-                      onClick={() => setActionView('edit')}
-                    >
-                      <span className="mp-action-tile-ico">
-                        <Pencil size={15} />
-                      </span>
-                      <span>تعديل البيانات وكلمة المرور</span>
-                    </button>
-                  )}
-
-                  {actionTarget.rid && canEditPartnerLinks && (
-                    <button
-                      type="button"
-                      className="mp-action-tile"
-                      onClick={() => setActionView('links')}
-                    >
-                      <span className="mp-action-tile-ico">
-                        <Link2 size={15} />
-                      </span>
-                      <span>رابط المنيو والسوشيال ميديا</span>
-                    </button>
-                  )}
-
-                  {actionTarget.rid && canImpersonatePartner && (
-                    <button
-                      type="button"
-                      className="mp-action-tile"
-                      onClick={() => {
-                        const rid = actionTarget.rid!;
-                        setActionTarget(null);
-                        void handleImpersonate(rid);
-                      }}
-                    >
-                      <span className="mp-action-tile-ico">
-                        <KeyRound size={15} />
-                      </span>
-                      <span>فتح لوحة تحكم الحساب</span>
-                    </button>
-                  )}
-
-                  {actionTarget.rid && (
-                    <button
-                      type="button"
-                      className="mp-action-tile"
-                      onClick={() => {
-                        const slugOrRid = actionTarget.rid === 'demo' && !actionTarget.slug ? 'cap-burger' : (actionTarget.slug || actionTarget.rid!);
-                        setActionTarget(null);
-                        onNavigate(`/${slugOrRid}`);
-                      }}
-                    >
-                      <span className="mp-action-tile-ico">
-                        <Eye size={15} />
-                      </span>
-                      <span>معاينة المنيو العام</span>
-                    </button>
-                  )}
-                </div>
-
-                {((!actionTarget.isProtected && actionTarget.role !== 'telegram_only' && canSuspendPartner) ||
-                  (!actionTarget.isProtected &&
-                    !(actionTarget.isCurrentUser || (session.accountId && actionTarget.id === session.accountId)) &&
-                    canDeletePartner)) && (
-                  <>
-                    <div className="mp-section-divider" style={{ margin: '2px 0' }} />
-                    <div className="mp-action-danger-row">
-                      {!actionTarget.isProtected && actionTarget.role !== 'telegram_only' && canSuspendPartner && (
-                        <button
-                          type="button"
-                          className={`mp-action-danger-btn${actionTarget.active ? '' : ' is-restore'}`}
-                          disabled={isSavingAction}
-                          onClick={() => void handleToggleSuspend()}
-                        >
-                          {actionTarget.active ? <Ban size={15} /> : <CheckCircle2 size={15} />}
-                          <span>{actionTarget.active ? 'إيقاف الحساب مؤقتاً' : 'تفعيل الحساب'}</span>
-                        </button>
-                      )}
-
-                      {!actionTarget.isProtected &&
-                        !(actionTarget.isCurrentUser || (session.accountId && actionTarget.id === session.accountId)) &&
-                        canDeletePartner && (
-                        <button
-                          type="button"
-                          className="mp-action-danger-btn"
-                          onClick={() => {
-                            setConfirmRealOwnerDelete(false);
-                            setActionView('delete');
-                          }}
-                        >
-                          <Trash2 size={15} />
-                          <span>حذف الحساب نهائياً</span>
-                        </button>
-                      )}
-                    </div>
-                  </>
-                )}
-
-                {(actionTarget.isProtected ||
-                  actionTarget.isCurrentUser ||
-                  (session.accountId && actionTarget.id === session.accountId)) && (
-                  <div className="muted" style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', paddingTop: '2px' }}>
-                    <Shield size={14} />
-                    <span>
-                      {actionTarget.isProtected
-                        ? 'حساب مالك المنصة الرئيسي محمي من الإيقاف أو الحذف'
-                        : 'هذا حسابك النشط حالياً ولا يمكن حذفه أثناء استخدامه'}
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* VIEW 1: GRANT PLAN & DURATION */}
-            {actionView === 'plan' && (
-              <div>
-                <div className="g2" style={{ gap: '10px', marginBottom: '12px' }}>
-                  <label className="f" style={{ margin: 0 }}>
-                    اختر الباقة
-                    <select
-                      value={grantPlanId}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setGrantPlanId(val);
-                        const pl = plans.find((x) => x.id === val || x.n === val);
-                        if (pl) setGrantIsPaid(pl.pr > 0);
-                      }}
-                    >
-                      {plans.map((pl) => (
-                        <option key={pl.id} value={pl.id}>
-                          {pl.n} ({formatNumber(pl.pr)} د.ع)
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="f" style={{ margin: 0 }}>
-                    المدة بالأيام
-                    <input
-                      type="number"
-                      min={1}
-                      max={3650}
-                      dir="ltr"
-                      value={grantDurationDays}
-                      onChange={(e) => setGrantDurationDays(Math.max(1, Number(e.target.value) || 30))}
-                    />
-                  </label>
-                </div>
-
-                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
-                  {DURATION_PRESETS.map((preset) => (
-                    <button
-                      key={preset.days}
-                      type="button"
-                      className={`btn s${grantDurationDays === preset.days ? ' p' : ''}`}
-                      onClick={() => setGrantDurationDays(preset.days)}
-                      style={{ fontSize: '12px', padding: '5px 10px' }}
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', paddingTop: '10px', borderTop: '1px solid var(--line)' }}>
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
-                    <input
-                      type="checkbox"
-                      checked={grantIsPaid}
-                      onChange={(e) => setGrantIsPaid(e.target.checked)}
-                    />
-                    <span>تصنيف الاشتراك: مدفوع</span>
-                  </label>
-
-                  <button
-                    type="button"
-                    className="btn p"
-                    disabled={isSavingAction}
-                    onClick={() => void handleGrantPlanAndDuration()}
-                  >
-                    {isSavingAction ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
-                    <span>تفعيل الباقة ({grantDurationDays} يوم)</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* VIEW 2: EDIT ACCOUNT & PROJECT DETAILS */}
-            {actionView === 'edit' && (
-              <form onSubmit={(e) => void handleSaveAccountDetails(e)}>
-                <div className="g2" style={{ gap: '10px' }}>
-                  <label className="f" style={{ margin: 0 }}>
-                    رقم الهاتف
-                    <input
-                      type="tel"
-                      dir="ltr"
-                      value={editPhone}
-                      onChange={(e) => setEditPhone(e.target.value)}
-                      placeholder="0770..."
-                    />
-                  </label>
-
-                  <label className="f" style={{ margin: 0 }}>
-                    اسم المشروع
-                    <input
-                      type="text"
-                      value={editProjectName}
-                      onChange={(e) => setEditProjectName(e.target.value)}
-                      placeholder="اسم المطعم أو المتجر"
-                    />
-                  </label>
-
-                  <label className="f" style={{ margin: 0 }}>
-                    نوع المشروع
-                    <select value={editProjectType} onChange={(e) => setEditProjectType(e.target.value)}>
-                      {PROJECT_TYPE_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="f" style={{ margin: 0 }}>
-                    اسم صاحب الحساب
-                    <input
-                      type="text"
-                      value={editOwnerName}
-                      onChange={(e) => setEditOwnerName(e.target.value)}
-                      placeholder="الاسم الكامل"
-                    />
-                  </label>
-
-                  {!actionTarget.isProtected && actionTarget.role !== 'telegram_only' && (
-                    <label className="f" style={{ margin: 0 }}>
-                      صلاحية الحساب
-                      <select value={editRole} onChange={(e) => setEditRole(e.target.value as 'admin' | 'partner')}>
-                        <option value="partner">شريك متجر</option>
-                        <option value="admin">مدير منصة</option>
-                      </select>
-                    </label>
-                  )}
-
-                  <label className="f" style={{ margin: 0 }}>
-                    كلمة مرور جديدة (اختياري)
-                    <input
-                      type="password"
-                      dir="ltr"
-                      value={editNewPassword}
-                      onChange={(e) => setEditNewPassword(e.target.value)}
-                      placeholder="اتركه فارغاً للإبقاء"
-                    />
-                  </label>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px', paddingTop: '10px', borderTop: '1px solid var(--line)' }}>
-                  <button type="submit" className="btn p" disabled={isSavingAction}>
-                    {isSavingAction ? <Loader2 size={14} className="animate-spin" /> : null}
-                    <span>حفظ التعديلات</span>
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {/* VIEW 3: EDIT MENU SLUG, SUBDOMAIN & SOCIAL LINKS */}
-            {actionView === 'links' && (
-              <form
-                onSubmit={(e) => void handleSavePartnerLinks(e)}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '10px',
-                }}
-              >
-                <div className="g2" style={{ gap: '10px' }}>
-                  <label className="f" style={{ margin: 0 }}>
-                    معرّف الرابط (Slug)
-                    <input
-                      type="text"
-                      dir="ltr"
-                      value={editSlug}
-                      onChange={(e) => setEditSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                      placeholder="my-store"
-                    />
-                  </label>
-                  <label className="f" style={{ margin: 0 }}>
-                    النطاق الفرعي (Subdomain)
-                    <input
-                      type="text"
-                      dir="ltr"
-                      value={editSubdomain}
-                      onChange={(e) => setEditSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                      placeholder="my-store"
-                    />
-                  </label>
-                </div>
-
-                <div className="g2" style={{ gap: '10px' }}>
-                  <label className="f" style={{ margin: 0 }}>
-                    انستغرام (Instagram)
-                    <input dir="ltr" value={editInstagram} onChange={(e) => setEditInstagram(e.target.value)} placeholder="https://instagram.com/..." />
-                  </label>
-                  <label className="f" style={{ margin: 0 }}>
-                    فيسبوك (Facebook)
-                    <input dir="ltr" value={editFacebook} onChange={(e) => setEditFacebook(e.target.value)} placeholder="https://facebook.com/..." />
-                  </label>
-                  <label className="f" style={{ margin: 0 }}>
-                    تيك توك (TikTok)
-                    <input dir="ltr" value={editTiktok} onChange={(e) => setEditTiktok(e.target.value)} placeholder="https://tiktok.com/@..." />
-                  </label>
-                  <label className="f" style={{ margin: 0 }}>
-                    إكس / تويتر (X)
-                    <input dir="ltr" value={editX} onChange={(e) => setEditX(e.target.value)} placeholder="https://x.com/..." />
-                  </label>
-                </div>
-
-                <label className="f" style={{ margin: 0 }}>
-                  واتساب التواصل
-                  <input dir="ltr" value={editWhatsapp} onChange={(e) => setEditWhatsapp(e.target.value)} placeholder="0770..." />
-                </label>
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '8px', borderTop: '1px solid var(--line)' }}>
-                  <button type="submit" className="btn p" disabled={isSavingAction}>
-                    {isSavingAction ? <Loader2 size={14} className="animate-spin" /> : null}
-                    <span>حفظ الرابط والتواصل</span>
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {/* VIEW 4: CONFIRM PHYSICAL DELETE (Clean Flat Dual-Theme Layout) */}
-            {actionView === 'delete' && (() => {
-              const isRealMenuOwner = Boolean(
-                actionTarget.hasOwnedMenu ||
-                (actionTarget.role === 'partner' && actionTarget.rid && actionTarget.rid !== 'demo')
-              );
-              const isSelfRegistered = Boolean(actionTarget.isSelfRegisteredMenuOwner);
-
-              return (
-                <div className="mp-danger-banner">
-                  <div className="mp-danger-head">
-                    <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: '2px' }} />
-                    <div>
-                      <div style={{ fontSize: '14px', fontWeight: 800 }}>
-                        {isRealMenuOwner
-                          ? 'تأكيد أخير: هذا الحساب يمتلك منيو حقيقي'
-                          : 'هل أنت متأكد من الحذف النهائي لهذا الحساب؟'}
-                      </div>
-                      <div style={{ fontSize: '12.5px', opacity: 0.9, marginTop: '3px', lineHeight: 1.55 }}>
-                        {isRealMenuOwner
-                          ? isSelfRegistered
-                            ? 'هذا الزبون سجّل بنفسه ويمتلك منيو فعلي في المنصة.'
-                            : 'يوجد مشروع ومنيو مرتبط بهذا الحساب سيتم حذفه نهائياً.'
-                          : 'سيتم حذف الحساب والمتجر من المنصة فقط مع الإبقاء على توثيق الرقم في قاعدة بيانات تيليجرام.'}
-                      </div>
-                    </div>
-                  </div>
-
-                  {isRealMenuOwner && (
-                    <>
-                      <div className="mp-danger-meta">
-                        <div>
-                          <span className="muted" style={{ display: 'block', fontSize: '11.5px' }}>المشروع</span>
-                          <b>{actionTarget.projectName || actionTarget.restaurantName || actionTarget.name}</b>
-                        </div>
-                        <div>
-                          <span className="muted" style={{ display: 'block', fontSize: '11.5px' }}>الباقة</span>
-                          <b>{actionTarget.planName || 'الباقة الاقتصادية'}</b>
-                        </div>
-                        <div style={{ gridColumn: '1 / -1' }}>
-                          <span className="muted" style={{ display: 'block', fontSize: '11.5px' }}>حالة المنيو</span>
-                          <b>{actionTarget.done === 1 ? 'مكتمل ومفعّل' : 'قيد الإعداد'}</b>
-                          {typeof actionTarget.itemsCount === 'number' && (
-                            <span className="muted tabular-nums">
-                              {` · ${actionTarget.catsCount || 0} قسم · ${actionTarget.itemsCount} صنف · ${actionTarget.ordersCount || 0} طلب`}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <label className={`mp-confirm-check${confirmRealOwnerDelete ? ' is-checked' : ''}`}>
-                        <input
-                          type="checkbox"
-                          checked={confirmRealOwnerDelete}
-                          onChange={(e) => setConfirmRealOwnerDelete(e.target.checked)}
-                        />
-                        <span>أؤكد أن هذا الحساب ليس مهماً لي وأريد حذفه مع المنيو نهائياً</span>
-                      </label>
-                    </>
-                  )}
-
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'flex-end',
-                      gap: '8px',
-                      flexWrap: 'wrap',
-                      paddingTop: '10px',
-                      borderTop: '1px solid var(--line)',
-                    }}
-                  >
-                    <button
-                      type="button"
-                      className="btn s"
-                      onClick={() => {
-                        setConfirmRealOwnerDelete(false);
-                        setActionView('menu');
-                      }}
-                    >
-                      إلغاء
-                    </button>
-                    <button
-                      type="button"
-                      className="btn s p d"
-                      disabled={isDeleting || (isRealMenuOwner && !confirmRealOwnerDelete)}
-                      onClick={() => void handleConfirmDelete()}
-                    >
-                      {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                      <span>{isRealMenuOwner ? 'تأكيد الحذف النهائي للمشروع والحساب' : 'تأكيد الحذف النهائي'}</span>
-                    </button>
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-        </div>
-      )}
-
-      {/* Add Account / Partner Modal */}
-      {showAddModal && (
-        <div className="ajax-backdrop" onClick={() => setShowAddModal(false)}>
-          <div
-            className="ajax-box"
-            onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: '500px', textAlign: 'start' }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', paddingBottom: '10px', borderBottom: '1px solid var(--line)' }}>
-              <h3 style={{ margin: 0, fontSize: '17px' }}>إضافة حساب ومشروع جديد</h3>
-              <button type="button" className="btn s" onClick={() => setShowAddModal(false)}>
-                <X size={16} />
-              </button>
-            </div>
-
-            {addError && (
-              <div style={{ marginBottom: '10px', padding: '9px 12px', borderRadius: '10px', background: 'rgba(239,68,68,0.12)', color: '#ef4444', fontSize: '12.5px' }}>
-                {addError}
-              </div>
-            )}
-
-            <form onSubmit={(e) => void handleAddPartnerSubmit(e)} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div className="g2" style={{ gap: '10px' }}>
-                <label className="f" style={{ margin: 0 }}>
-                  رقم الهاتف
-                  <input
-                    type="tel"
-                    dir="ltr"
-                    value={newPhone}
-                    onChange={(e) => setNewPhone(e.target.value)}
-                    placeholder="07701234567"
-                  />
-                </label>
-
-                <label className="f" style={{ margin: 0 }}>
-                  اسم المشروع *
-                  <input
-                    type="text"
-                    value={newProjectName}
-                    onChange={(e) => setNewProjectName(e.target.value)}
-                    placeholder="اسم المطعم أو المتجر"
-                    required
-                  />
-                </label>
-
-                <label className="f" style={{ margin: 0 }}>
-                  نوع المشروع
-                  <select value={newProjectType} onChange={(e) => setNewProjectType(e.target.value)}>
-                    {PROJECT_TYPE_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="f" style={{ margin: 0 }}>
-                  اسم المسؤول / المالك
-                  <input
-                    type="text"
-                    value={newOwnerName}
-                    onChange={(e) => setNewOwnerName(e.target.value)}
-                    placeholder="اختياري"
-                  />
-                </label>
-
-                <label className="f" style={{ margin: 0 }}>
-                  الباقة
-                  <select
-                    value={newPlanId}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setNewPlanId(val);
-                      const pl = plans.find((x) => x.id === val || x.n === val);
-                      if (pl) setNewIsPaid(pl.pr > 0);
-                    }}
-                  >
-                    {plans.map((pl) => (
-                      <option key={pl.id} value={pl.id}>
-                        {pl.n} ({formatNumber(pl.pr)} د.ع)
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="f" style={{ margin: 0 }}>
-                  مدة الباقة (أيام)
-                  <input
-                    type="number"
-                    min={1}
-                    max={3650}
-                    dir="ltr"
-                    value={newDurationDays}
-                    onChange={(e) => setNewDurationDays(Math.max(1, Number(e.target.value) || 30))}
-                  />
-                </label>
-              </div>
-
-              <label className="f" style={{ margin: 0 }}>
-                كلمة مرور الدخول للحساب (اختياري)
-                <input
-                  type="password"
-                  dir="ltr"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="8 خانات فأكثر (أرقام أو أحرف أو رموز)"
-                />
-              </label>
-
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
-                <input
-                  type="checkbox"
-                  checked={newIsPaid}
-                  onChange={(e) => setNewIsPaid(e.target.checked)}
-                />
-                <b>اشتراك مدفوع</b>
-              </label>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '6px' }}>
-                <button type="button" className="btn s" onClick={() => setShowAddModal(false)}>
-                  إلغاء
-                </button>
-                <button type="submit" className="btn p" disabled={isAdding}>
-                  {isAdding ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
-                  <span>حفظ وإضافة الحساب</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {actionModalContent}
+      {addModalContent}
     </div>
   );
 };

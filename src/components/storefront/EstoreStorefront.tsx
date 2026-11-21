@@ -479,6 +479,9 @@ export const EstoreStorefront: React.FC<EstoreStorefrontProps> = ({
             )}
           </div>
           <h3 className="mp-bg-card-title">{it.n}</h3>
+          {unavailable && (
+            <span className="pm-item-unavailable-label">غير متوفر حالياً</span>
+          )}
         </div>
       </article>
     );

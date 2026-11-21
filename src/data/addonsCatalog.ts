@@ -469,6 +469,8 @@ export function buildDefaultAddons(rest?: Restaurant): RestaurantAddons {
         saved.countdownTimer?.discountText ||
         (isStore ? 'خصم 15% لفترة محدودة على كل المتجر' : 'خصم 15% لفترة محدودة على كل المنيو'),
       endHour: saved.countdownTimer?.endHour ?? 23,
+      minOrderAmount: Math.max(0, Number(saved.countdownTimer?.minOrderAmount ?? 0) || 0),
+      maxDiscountAmount: Math.max(0, Number(saved.countdownTimer?.maxDiscountAmount ?? 0) || 0),
     },
     customerReviews: {
       configured: isCfg('customerReviews'),
@@ -480,6 +482,7 @@ export function buildDefaultAddons(rest?: Restaurant): RestaurantAddons {
       configured: isCfg('minOrder'),
       enabled: saved.minOrder?.enabled ?? false,
       amount: saved.minOrder?.amount ?? 10000,
+      maxAmount: Math.max(0, Number(saved.minOrder?.maxAmount ?? 0) || 0),
       message: saved.minOrder?.message || 'الحد الأدنى للطلب هو',
     },
     audioBell: {
@@ -495,6 +498,8 @@ export function buildDefaultAddons(rest?: Restaurant): RestaurantAddons {
       startHour: saved.happyHour?.startHour ?? 14,
       endHour: saved.happyHour?.endHour ?? 17,
       discountPercent: saved.happyHour?.discountPercent ?? 15,
+      minOrderAmount: Math.max(0, Number(saved.happyHour?.minOrderAmount ?? 0) || 0),
+      maxDiscountAmount: Math.max(0, Number(saved.happyHour?.maxDiscountAmount ?? 0) || 0),
     },
     limitedTimeDiscount: {
       configured: isCfg('limitedTimeDiscount'),
@@ -503,6 +508,8 @@ export function buildDefaultAddons(rest?: Restaurant): RestaurantAddons {
       durationDays: saved.limitedTimeDiscount?.durationDays ?? 1,
       startsAt: saved.limitedTimeDiscount?.startsAt,
       expiresAt: saved.limitedTimeDiscount?.expiresAt,
+      minOrderAmount: Math.max(0, Number(saved.limitedTimeDiscount?.minOrderAmount ?? 0) || 0),
+      maxDiscountAmount: Math.max(0, Number(saved.limitedTimeDiscount?.maxDiscountAmount ?? 0) || 0),
     },
     freeGiftThreshold: {
       configured: isCfg('freeGiftThreshold'),
@@ -548,6 +555,8 @@ export function buildDefaultAddons(rest?: Restaurant): RestaurantAddons {
       enabled: saved.firstOrderDiscount?.enabled ?? false,
       discountPercent: saved.firstOrderDiscount?.discountPercent ?? 10,
       title: saved.firstOrderDiscount?.title || 'هدية الترحيب لطلبك الأول',
+      minOrderAmount: Math.max(0, Number(saved.firstOrderDiscount?.minOrderAmount ?? 0) || 0),
+      maxDiscountAmount: Math.max(0, Number(saved.firstOrderDiscount?.maxDiscountAmount ?? 0) || 0),
     },
     freeDeliveryProgress: {
       configured: isCfg('freeDeliveryProgress'),
@@ -559,6 +568,7 @@ export function buildDefaultAddons(rest?: Restaurant): RestaurantAddons {
           : rest?.freeDeliveryMin && rest.freeDeliveryMin > 0
           ? rest.freeDeliveryMin
           : 25000,
+      maxDiscountAmount: Math.max(0, Number(saved.freeDeliveryProgress?.maxDiscountAmount ?? 0) || 0),
     },
     whatsappSupportFloat: {
       configured: isCfg('whatsappSupportFloat'),
@@ -580,6 +590,8 @@ export function buildDefaultAddons(rest?: Restaurant): RestaurantAddons {
         saved.pickupInstantDiscount?.title ||
         (isStore ? 'خصم خاص للاستلام الذاتي من المعرض' : 'خصم خاص للاستلام الذاتي من المطعم'),
       discountPercent: saved.pickupInstantDiscount?.discountPercent ?? 10,
+      minOrderAmount: Math.max(0, Number(saved.pickupInstantDiscount?.minOrderAmount ?? 0) || 0),
+      maxDiscountAmount: Math.max(0, Number(saved.pickupInstantDiscount?.maxDiscountAmount ?? 0) || 0),
     },
     moodMealFinder: {
       configured: isCfg('moodMealFinder'),
@@ -610,6 +622,8 @@ export interface ActiveMenuDiscount {
   value: number;
   sourceLabel: string;
   sourceType?: 'countdown' | 'limitedTime' | 'happyHour';
+  minOrderAmount: number;
+  maxDiscountAmount: number;
 }
 
 export function getActiveMenuDiscount(
@@ -626,6 +640,8 @@ export function getActiveMenuDiscount(
         value: val,
         sourceLabel: addons.countdownTimer.title || 'عرض المؤقت',
         sourceType: 'countdown',
+        minOrderAmount: Math.max(0, Number(addons.countdownTimer.minOrderAmount ?? 0) || 0),
+        maxDiscountAmount: Math.max(0, Number(addons.countdownTimer.maxDiscountAmount ?? 0) || 0),
       };
     }
   }
@@ -645,6 +661,8 @@ export function getActiveMenuDiscount(
           value: pct,
           sourceLabel: 'خصم لمدة محدودة',
           sourceType: 'limitedTime',
+          minOrderAmount: Math.max(0, Number(cfg.minOrderAmount ?? 0) || 0),
+          maxDiscountAmount: Math.max(0, Number(cfg.maxDiscountAmount ?? 0) || 0),
         };
       }
     }
@@ -665,19 +683,52 @@ export function getActiveMenuDiscount(
           value: pct,
           sourceLabel: addons.happyHour.title || 'ساعة السعادة',
           sourceType: 'happyHour',
+          minOrderAmount: Math.max(0, Number(addons.happyHour.minOrderAmount ?? 0) || 0),
+          maxDiscountAmount: Math.max(0, Number(addons.happyHour.maxDiscountAmount ?? 0) || 0),
         };
       }
     }
   }
 
-  return { active: false, type: 'percent', value: 0, sourceLabel: '' };
+  return {
+    active: false,
+    type: 'percent',
+    value: 0,
+    sourceLabel: '',
+    minOrderAmount: 0,
+    maxDiscountAmount: 0,
+  };
 }
 
 export function applyMenuPriceDiscount(rawPrice: number, discount: ActiveMenuDiscount): number {
   const base = Number(rawPrice) || 0;
   if (!discount.active || discount.value <= 0 || base <= 0) return base;
+  if ((discount.minOrderAmount || 0) > 0 || (discount.maxDiscountAmount || 0) > 0) {
+    return base;
+  }
   if (discount.type === 'fixed') {
     return Math.max(0, base - discount.value);
   }
   return Math.max(0, Math.round(base * (1 - Math.min(95, discount.value) / 100)));
+}
+
+export function computeOrderLevelDiscount(
+  subtotal: number,
+  type: 'percent' | 'fixed',
+  value: number,
+  minOrderAmount = 0,
+  maxDiscountAmount = 0
+): number {
+  const cleanSubtotal = Math.max(0, Number(subtotal) || 0);
+  const cleanVal = Math.max(0, Number(value) || 0);
+  const cleanMin = Math.max(0, Number(minOrderAmount) || 0);
+  const cleanMax = Math.max(0, Number(maxDiscountAmount) || 0);
+  if (cleanSubtotal <= 0 || cleanVal <= 0) return 0;
+  if (cleanMin > 0 && cleanSubtotal < cleanMin) return 0;
+  const rawDiscount =
+    type === 'fixed'
+      ? Math.min(cleanSubtotal, cleanVal)
+      : Math.round((cleanSubtotal * Math.min(95, cleanVal)) / 100);
+  const capped = cleanMax > 0 ? Math.min(rawDiscount, cleanMax) : rawDiscount;
+  return Math.min(cleanSubtotal, Math.max(0, capped));
 }

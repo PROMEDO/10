@@ -1708,16 +1708,6 @@ const PublicMenuContent: React.FC<PublicMenuContentProps> = ({
       const resolvedOrderSeq =
         Number(savedOrder?.orderSeq || savedOrder?.seq || 0) || fallbackOrderSeq;
 
-      const itemLines = resolvedCartLines.map((x) => {
-        const parts = [x.size, ...(x.choices || []), ...(x.extras || [])].filter(Boolean);
-        const optsStr = parts.length ? ` (${parts.join('، ')})` : '';
-        const noteStr = x.notes?.trim() ? `\n   ↳ ملاحظة: ${x.notes.trim()}` : '';
-        const discPart = x.hasDisc ? ` (مع الخصم ${x.discPct}% 🚨)` : '';
-        return `• ${x.name}${optsStr} (عدد ${x.qty}) — سعر الطبق: ${formatNumber(x.unitPrice)}${discPart}${noteStr}`;
-      });
-
-      const typeEmoji = orderType === 'delivery' ? '🛵' : orderType === 'pickup' ? '🛍️' : '🍽️';
-      const typeLabel = ORDER_TYPE_META[orderType].label;
       const discountedOrdersTotal = Math.max(
         0,
         subtotal - menuOrderDiscountAmt - firstOrderDiscountAmt - spinDiscountAmt - pickupDiscountAmt
@@ -1726,6 +1716,18 @@ const PublicMenuContent: React.FC<PublicMenuContentProps> = ({
         origSubtotal > 0 && totalDiscount > 0
           ? Math.max(1, Math.round((totalDiscount / origSubtotal) * 100))
           : 0;
+
+      const itemLines = resolvedCartLines.map((x) => {
+        const parts = [x.size, ...(x.choices || []), ...(x.extras || [])].filter(Boolean);
+        const optsStr = parts.length ? ` (${parts.join('، ')})` : '';
+        const noteStr = x.notes?.trim() ? `\n   ↳ ملاحظة: ${x.notes.trim()}` : '';
+        const itemDiscPct = x.hasDisc ? x.discPct : overallDiscPct;
+        const discPart = itemDiscPct > 0 ? ` خصم ${itemDiscPct}% 🚨` : '';
+        return `• ${x.name}${optsStr} (عدد ${x.qty})${discPart}${noteStr}`;
+      });
+
+      const typeEmoji = orderType === 'delivery' ? '🛵' : orderType === 'pickup' ? '🛍️' : '🍽️';
+      const typeLabel = ORDER_TYPE_META[orderType].label;
       const ordersPriceLine =
         overallDiscPct > 0
           ? `سعر الطلبات: ${formatNumber(discountedOrdersTotal)} (مع الخصم ${overallDiscPct}% 🚨)`

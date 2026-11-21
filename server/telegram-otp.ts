@@ -1573,6 +1573,35 @@ export function formatOrderTelegramMessage(
   const itemsList = Array.isArray(order.items) ? (order.items as Array<Record<string, unknown>>) : [];
   let computedOrigSubtotal = 0;
   let computedSubtotal = 0;
+  for (const it of itemsList) {
+    const qty = Math.max(1, Number(it.q || 1));
+    const price = Number(it.p || 0);
+    const origPrice = Number(it.origPrice ?? it.origP ?? 0);
+    const hasItemDiscount = origPrice > price && origPrice > 0;
+    computedSubtotal += qty * price;
+    computedOrigSubtotal += qty * (hasItemDiscount ? origPrice : price);
+  }
+
+  const freeGiftName = String(order.freeGiftName || '').trim();
+  const scheduledSlot = String(order.scheduledSlot || '').trim();
+  const tipAmount = Number(order.tipAmount || 0);
+  const menuOrderDiscount = Number(order.menuOrderDiscount || 0);
+  const firstOrderDiscount = Number(order.firstOrderDiscount || 0);
+  const spinDiscount = Number(order.spinDiscount || 0);
+  const pickupDiscount = Number(order.pickupDiscount || 0);
+  const origSubtotal = Number(order.origSubtotal || 0) || computedOrigSubtotal;
+  const itemsDiscountTotal =
+    Number(order.itemsDiscountTotal || 0) || Math.max(0, origSubtotal - computedSubtotal);
+  const orderLevelDiscountTotal =
+    discount + menuOrderDiscount + firstOrderDiscount + spinDiscount + pickupDiscount;
+  const totalDiscount =
+    Number(order.totalDiscount || 0) || itemsDiscountTotal + orderLevelDiscountTotal;
+  const discountedOrdersTotal = Math.max(0, computedSubtotal - orderLevelDiscountTotal);
+  const overallDiscPct =
+    origSubtotal > 0 && totalDiscount > 0
+      ? Math.max(1, Math.round((totalDiscount / origSubtotal) * 100))
+      : 0;
+
   const itemLines = itemsList.map((it) => {
     const qty = Math.max(1, Number(it.q || 1));
     const price = Number(it.p || 0);
@@ -1581,8 +1610,6 @@ export function formatOrderTelegramMessage(
     const pct =
       Number(it.discountPct || 0) ||
       (hasItemDiscount ? Math.max(1, Math.round(((origPrice - price) / origPrice) * 100)) : 0);
-    computedSubtotal += qty * price;
-    computedOrigSubtotal += qty * (hasItemDiscount ? origPrice : price);
 
     const parts = [
       it.size ? String(it.size) : '',
@@ -1592,8 +1619,9 @@ export function formatOrderTelegramMessage(
     const optsText = parts.length > 0 ? ` <i>(${escapeHtml(parts.join('، '))})</i>` : '';
     const itemNote = String(it.notes || '').trim();
     const noteLine = itemNote ? `\n   ↳ <i>ملاحظة: ${escapeHtml(itemNote)}</i>` : '';
-    const unitDiscountPart = hasItemDiscount ? ` (مع الخصم ${pct}% 🚨)` : '';
-    return `• <b>${escapeHtml(it.n || 'منتج')}</b>${optsText} (عدد ${qty}) — سعر الطبق: ${formatMoney(price)}${unitDiscountPart}${noteLine}`;
+    const effectiveItemDiscPct = pct > 0 ? pct : overallDiscPct;
+    const unitDiscountPart = effectiveItemDiscPct > 0 ? ` خصم ${effectiveItemDiscPct}% 🚨` : '';
+    return `• <b>${escapeHtml(it.n || 'منتج')}</b>${optsText} (عدد ${qty})${unitDiscountPart}${noteLine}`;
   });
 
   const divider = '----------------';
@@ -1621,26 +1649,6 @@ export function formatOrderTelegramMessage(
     lines.push('');
     lines.push(`<b>ملاحظات:</b> ${escapeHtml(notes)}`);
   }
-
-  const freeGiftName = String(order.freeGiftName || '').trim();
-  const scheduledSlot = String(order.scheduledSlot || '').trim();
-  const tipAmount = Number(order.tipAmount || 0);
-  const menuOrderDiscount = Number(order.menuOrderDiscount || 0);
-  const firstOrderDiscount = Number(order.firstOrderDiscount || 0);
-  const spinDiscount = Number(order.spinDiscount || 0);
-  const pickupDiscount = Number(order.pickupDiscount || 0);
-  const origSubtotal = Number(order.origSubtotal || 0) || computedOrigSubtotal;
-  const itemsDiscountTotal =
-    Number(order.itemsDiscountTotal || 0) || Math.max(0, origSubtotal - computedSubtotal);
-  const orderLevelDiscountTotal =
-    discount + menuOrderDiscount + firstOrderDiscount + spinDiscount + pickupDiscount;
-  const totalDiscount =
-    Number(order.totalDiscount || 0) || itemsDiscountTotal + orderLevelDiscountTotal;
-  const discountedOrdersTotal = Math.max(0, computedSubtotal - orderLevelDiscountTotal);
-  const overallDiscPct =
-    origSubtotal > 0 && totalDiscount > 0
-      ? Math.max(1, Math.round((totalDiscount / origSubtotal) * 100))
-      : 0;
 
   lines.push('');
   if (overallDiscPct > 0) {

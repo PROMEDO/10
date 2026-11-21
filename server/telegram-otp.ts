@@ -1532,42 +1532,6 @@ const ORDER_TYPE_AR: Record<string, string> = {
   table: 'طلب طاولة',
 };
 
-function formatIraqOrderDateTime(tsRaw: unknown): {
-  timeStr: string;
-  dayNameAr: string;
-  dateStr: string;
-} {
-  const numericTs = Number(tsRaw || Date.now());
-  const dateObj = Number.isFinite(numericTs) && numericTs > 0 ? new Date(numericTs) : new Date();
-  const timeZone = 'Asia/Baghdad';
-
-  const timeParts = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true,
-  }).formatToParts(dateObj);
-  const hour = timeParts.find((p) => p.type === 'hour')?.value || '12';
-  const minute = timeParts.find((p) => p.type === 'minute')?.value || '00';
-  const dayPeriod = timeParts.find((p) => p.type === 'dayPeriod')?.value || '';
-  const arPeriod = /pm/i.test(dayPeriod) ? 'م' : 'ص';
-  const timeStr = `${hour}:${minute} ${arPeriod}`;
-
-  const dayNameAr = new Intl.DateTimeFormat('ar-IQ', {
-    timeZone,
-    weekday: 'long',
-  }).format(dateObj);
-
-  const dateStr = new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(dateObj);
-
-  return { timeStr, dayNameAr, dateStr };
-}
-
 export function formatOrderTelegramMessage(
   restaurant: Record<string, unknown>,
   order: Record<string, unknown>,
@@ -1581,21 +1545,19 @@ export function formatOrderTelegramMessage(
   const footer =
     cachedTelegramConfig.orderFooterText || DEFAULT_TELEGRAM_CONFIG.orderFooterText;
 
-  const storeName = escapeHtml(restaurant.n || 'المتجر');
-  const currency = escapeHtml(restaurant.currency || 'د.ع');
   const rawSeq = Number(order.seq ?? order.orderSeq ?? 0);
   const seqNumber =
     Number.isFinite(rawSeq) && rawSeq > 0
       ? rawSeq
       : Math.max(1, (Number(restaurant.o || 0) || 0) + (isTest ? 1 : 0));
 
-  const { timeStr, dateStr } = formatIraqOrderDateTime(order.at);
   const cu = (order.cu && typeof order.cu === 'object' ? order.cu : {}) as Record<string, unknown>;
 
-  const customerName = escapeHtml(cu.n || order.name || 'زبون');
-  const customerPhone = escapeHtml(cu.ph || order.phone || '—');
+  const customerName = escapeHtml(cu.n || order.name || '');
+  const customerPhone = escapeHtml(cu.ph || order.phone || '');
   const rawType = String(cu.orderType || order.type || 'delivery');
   const typeLabel = ORDER_TYPE_AR[rawType] || rawType;
+  const typeEmoji = rawType === 'delivery' ? '🛵' : rawType === 'pickup' ? '🛍️' : '🍽️';
   const tableNum = cu.table || order.table;
   const area = cu.area ? String(cu.area).trim() : '';
   const city = cu.city ? String(cu.city).trim() : '';
@@ -1629,102 +1591,78 @@ export function formatOrderTelegramMessage(
     ].filter(Boolean);
     const optsText = parts.length > 0 ? ` <i>(${escapeHtml(parts.join('، '))})</i>` : '';
     const itemNote = String(it.notes || '').trim();
-    const noteLine = itemNote ? `\n   ↳ <i>${escapeHtml(itemNote)}</i>` : '';
-    const unitDiscountPart = hasItemDiscount
-      ? ` · <s>${formatMoney(origPrice)}</s> (<b>خصم ${pct}%</b>)`
-      : '';
-    return `• <b>${escapeHtml(it.n || 'منتج')}</b>${optsText} × ${qty} — سعر الطبق: ${formatMoney(price)} ${currency}${unitDiscountPart} = <b>${formatMoney(qty * price)} ${currency}</b>${noteLine}`;
+    const noteLine = itemNote ? `\n   ↳ <i>ملاحظة: ${escapeHtml(itemNote)}</i>` : '';
+    const unitDiscountPart = hasItemDiscount ? ` (مع الخصم ${pct}% 🚨)` : '';
+    return `• <b>${escapeHtml(it.n || 'منتج')}</b>${optsText} (عدد ${qty}) — سعر الطبق: ${formatMoney(price)}${unitDiscountPart}${noteLine}`;
   });
 
-  const divider = '────────────';
+  const divider = '----------------';
   const lines: string[] = [];
 
   const cleanHeader = header.replace(/^🔔\s*/, '').trim() || 'طلب جديد';
-  lines.push(`🔔 <b>${escapeHtml(cleanHeader)}</b> — ${storeName}`);
+  lines.push(`<b>${escapeHtml(cleanHeader)} 📌</b>`);
   if (isTest) {
     lines.push('<i>طلب تجريبي للتحقق من الربط</i>');
   }
   lines.push(`<b>رقم الطلب:</b> <code>#${seqNumber}</code>`);
-  lines.push(`<b>النوع:</b> ${escapeHtml(typeLabel)}${tableNum ? ` (طاولة ${escapeHtml(tableNum)})` : ''}`);
-  lines.push(`<b>الوقت:</b> <code>${escapeHtml(timeStr)}</code> · <code>${escapeHtml(dateStr)}</code>`);
-
-  lines.push(divider);
-  lines.push(`<b>الزبون:</b> ${customerName}`);
-  lines.push(`<b>الهاتف:</b> <code>${customerPhone}</code>`);
-  if (area || city || address) {
-    const rawLocParts = [city, area, address].filter(Boolean);
-    const dedupedLoc: string[] = [];
-    for (const part of rawLocParts) {
-      const existingIdx = dedupedLoc.findIndex(
-        (ex) => ex === part || ex.includes(part) || part.includes(ex)
-      );
-      if (existingIdx === -1) {
-        dedupedLoc.push(part);
-      } else if (part.length > dedupedLoc[existingIdx].length) {
-        dedupedLoc[existingIdx] = part;
-      }
-    }
-    lines.push(`<b>العنوان:</b> ${escapeHtml(dedupedLoc.join(' — '))}`);
+  lines.push(`<b>النوع:</b> ${escapeHtml(typeLabel)} ${typeEmoji}`);
+  if (tableNum) {
+    lines.push(`<b>الطاولة:</b> ${escapeHtml(tableNum)}`);
   }
 
   if (itemLines.length > 0) {
+    lines.push('');
     lines.push(divider);
     lines.push(...itemLines);
+    lines.push(divider);
+  }
+
+  if (notes) {
+    lines.push('');
+    lines.push(`<b>ملاحظات:</b> ${escapeHtml(notes)}`);
   }
 
   const freeGiftName = String(order.freeGiftName || '').trim();
   const scheduledSlot = String(order.scheduledSlot || '').trim();
   const tipAmount = Number(order.tipAmount || 0);
+  const menuOrderDiscount = Number(order.menuOrderDiscount || 0);
   const firstOrderDiscount = Number(order.firstOrderDiscount || 0);
-  const spinRewardLabel = String(order.spinRewardLabel || '').trim();
   const spinDiscount = Number(order.spinDiscount || 0);
   const pickupDiscount = Number(order.pickupDiscount || 0);
-  const pickupDiscountLabel = String(order.pickupDiscountLabel || 'خصم الاستلام الفوري').trim();
-  const menuDiscountLabel = String(order.menuDiscountLabel || '').trim();
   const origSubtotal = Number(order.origSubtotal || 0) || computedOrigSubtotal;
   const itemsDiscountTotal =
     Number(order.itemsDiscountTotal || 0) || Math.max(0, origSubtotal - computedSubtotal);
-  const orderLevelDiscountTotal = discount + firstOrderDiscount + spinDiscount + pickupDiscount;
-  const totalDiscount = itemsDiscountTotal + orderLevelDiscountTotal;
-  const couponCode = String(order.couponCode || '').trim();
+  const orderLevelDiscountTotal =
+    discount + menuOrderDiscount + firstOrderDiscount + spinDiscount + pickupDiscount;
+  const totalDiscount =
+    Number(order.totalDiscount || 0) || itemsDiscountTotal + orderLevelDiscountTotal;
+  const discountedOrdersTotal = Math.max(0, computedSubtotal - orderLevelDiscountTotal);
+  const overallDiscPct =
+    origSubtotal > 0 && totalDiscount > 0
+      ? Math.max(1, Math.round((totalDiscount / origSubtotal) * 100))
+      : 0;
 
-  lines.push(divider);
-  if (origSubtotal > 0 && totalDiscount > 0) {
-    lines.push(`<b>المجموع قبل الخصم:</b> ${formatMoney(origSubtotal)} ${currency}`);
-  } else if (computedSubtotal > 0) {
-    lines.push(`<b>مجموع الأطباق:</b> ${formatMoney(computedSubtotal)} ${currency}`);
-  }
-  if (itemsDiscountTotal > 0) {
+  lines.push('');
+  if (overallDiscPct > 0) {
     lines.push(
-      `<b>خصم على الأطباق${menuDiscountLabel ? ` (${escapeHtml(menuDiscountLabel)})` : ''}:</b> -${formatMoney(itemsDiscountTotal)} ${currency}`
+      `<b>سعر الطلبات:</b> ${formatMoney(discountedOrdersTotal)} (مع الخصم ${overallDiscPct}% 🚨)`
+    );
+  } else {
+    lines.push(`<b>سعر الطلبات:</b> ${formatMoney(discountedOrdersTotal)}`);
+  }
+  if (rawType === 'delivery') {
+    lines.push(
+      `<b>التوصيل:</b> ${deliveryFee > 0 ? formatMoney(deliveryFee) : 'مجاني'}`
     );
   }
-  if (deliveryFee > 0) {
-    lines.push(`<b>التوصيل:</b> ${formatMoney(deliveryFee)} ${currency}`);
-  }
   if (serviceFee > 0) {
-    lines.push(`<b>رسوم الخدمة:</b> ${formatMoney(serviceFee)} ${currency}`);
+    lines.push(`<b>رسوم الخدمة:</b> ${formatMoney(serviceFee)}`);
   }
   if (tipAmount > 0) {
-    lines.push(`<b>إكرامية:</b> ${formatMoney(tipAmount)} ${currency}`);
-  }
-  if (discount > 0) {
-    lines.push(`<b>خصم على الطلب${couponCode ? ` (${escapeHtml(couponCode)})` : ''}:</b> -${formatMoney(discount)} ${currency}`);
-  }
-  if (firstOrderDiscount > 0) {
-    lines.push(`<b>خصم على الطلب (الطلب الأول):</b> -${formatMoney(firstOrderDiscount)} ${currency}`);
-  }
-  if (spinDiscount > 0) {
-    lines.push(`<b>خصم على الطلب (مكافأة${spinRewardLabel ? ` ${escapeHtml(spinRewardLabel)}` : ''}):</b> -${formatMoney(spinDiscount)} ${currency}`);
-  }
-  if (pickupDiscount > 0) {
-    lines.push(`<b>خصم على الطلب (${escapeHtml(pickupDiscountLabel)}):</b> -${formatMoney(pickupDiscount)} ${currency}`);
-  }
-  if (totalDiscount > 0) {
-    lines.push(`<b>إجمالي الخصم:</b> -${formatMoney(totalDiscount)} ${currency}`);
+    lines.push(`<b>إكرامية:</b> ${formatMoney(tipAmount)}`);
   }
   if (freeGiftName) {
-    lines.push(`<b>هدية مجانية:</b> ${escapeHtml(freeGiftName)}`);
+    lines.push(`<b>الهدية:</b> ${escapeHtml(freeGiftName)}`);
   }
   if (order.needCutlery === true) {
     lines.push('<b>أدوات الطعام:</b> مطلوبة');
@@ -1734,13 +1672,27 @@ export function formatOrderTelegramMessage(
   if (scheduledSlot) {
     lines.push(`<b>الموعد:</b> ${escapeHtml(scheduledSlot)}`);
   }
-  lines.push(`<b>الإجمالي النهائي: ${formatMoney(total)} ${currency}</b>`);
+  lines.push(`<b>المجموع:</b> <b>${formatMoney(total)}</b>`);
 
-  if (notes) {
-    lines.push(`<b>ملاحظات:</b> ${escapeHtml(notes)}`);
+  const customerBlock: string[] = [];
+  if (rawType === 'delivery') {
+    const areaFallback =
+      area && city && area !== city && !area.includes(city)
+        ? `${area} - ${city}`
+        : area || city || '';
+    const addrText = address || areaFallback;
+    if (addrText) {
+      customerBlock.push(`<b>العنوان:</b> ${escapeHtml(addrText)}`);
+    }
   }
-
+  if (customerName) {
+    customerBlock.push(`<b>الزبون:</b> ${customerName}`);
+  }
+  if (customerPhone) {
+    customerBlock.push(`<b>الهاتف:</b> <code>${customerPhone}</code>`);
+  }
   if (
+    rawType === 'delivery' &&
     lat !== undefined &&
     lng !== undefined &&
     Number.isFinite(lat) &&
@@ -1748,11 +1700,11 @@ export function formatOrderTelegramMessage(
     (lat !== 0 || lng !== 0)
   ) {
     const googleMapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
-    const wazeUrl = `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`;
-    lines.push(divider);
-    lines.push('📍 <b>الموقع:</b>');
-    lines.push(`Google Maps: <a href="${escapeHtml(googleMapsUrl)}">${escapeHtml(googleMapsUrl)}</a>`);
-    lines.push(`Waze: <a href="${escapeHtml(wazeUrl)}">${escapeHtml(wazeUrl)}</a>`);
+    customerBlock.push(`📍 <b>الموقع:</b> <a href="${escapeHtml(googleMapsUrl)}">${escapeHtml(googleMapsUrl)}</a>`);
+  }
+  if (customerBlock.length > 0) {
+    lines.push('');
+    lines.push(...customerBlock);
   }
 
   if (footer && footer !== 'تواصل مع الزبون أو تابع تفاصيل الطلب من لوحة التحكم.') {

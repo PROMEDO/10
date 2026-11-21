@@ -1710,78 +1710,80 @@ const PublicMenuContent: React.FC<PublicMenuContentProps> = ({
 
       const itemLines = resolvedCartLines.map((x) => {
         const parts = [x.size, ...(x.choices || []), ...(x.extras || [])].filter(Boolean);
-        const optsStr = parts.length ? ` (${parts.join(', ')})` : '';
+        const optsStr = parts.length ? ` (${parts.join('، ')})` : '';
         const noteStr = x.notes?.trim() ? `\n   ↳ ملاحظة: ${x.notes.trim()}` : '';
-        const discPart = x.hasDisc
-          ? ` (بدلاً من ${formatNumber(x.origUnitPrice)} · خصم ${x.discPct}%)`
-          : '';
-        return `• ${x.name}${optsStr} × ${x.qty} — سعر الطبق: ${formatNumber(x.unitPrice)} ${currency}${discPart} = ${formatNumber(x.qty * x.unitPrice)} ${currency}${noteStr}`;
+        const discPart = x.hasDisc ? ` (مع الخصم ${x.discPct}% 🚨)` : '';
+        return `• ${x.name}${optsStr} (عدد ${x.qty}) — سعر الطبق: ${formatNumber(x.unitPrice)}${discPart}${noteStr}`;
       });
 
+      const typeEmoji = orderType === 'delivery' ? '🛵' : orderType === 'pickup' ? '🛍️' : '🍽️';
       const typeLabel = ORDER_TYPE_META[orderType].label;
-      const lines = [
-        `طلب جديد — ${rest.n}`,
+      const discountedOrdersTotal = Math.max(
+        0,
+        subtotal - menuOrderDiscountAmt - firstOrderDiscountAmt - spinDiscountAmt - pickupDiscountAmt
+      );
+      const overallDiscPct =
+        origSubtotal > 0 && totalDiscount > 0
+          ? Math.max(1, Math.round((totalDiscount / origSubtotal) * 100))
+          : 0;
+      const ordersPriceLine =
+        overallDiscPct > 0
+          ? `سعر الطلبات: ${formatNumber(discountedOrdersTotal)} (مع الخصم ${overallDiscPct}% 🚨)`
+          : `سعر الطلبات: ${formatNumber(discountedOrdersTotal)}`;
+
+      const lines: string[] = [
+        'طلب جديد 📌',
         `رقم الطلب: #${resolvedOrderSeq}`,
-        `النوع: ${typeLabel}`,
+        `النوع: ${typeLabel} ${typeEmoji}`,
         ...(tableVal ? [`الطاولة: ${tableVal}`] : []),
+        '',
         '----------------',
         ...itemLines,
         '----------------',
-        ...(origSubtotal > subtotal || totalDiscount > 0
-          ? [`المجموع قبل الخصم: ${formatNumber(origSubtotal)} ${currency}`]
-          : [`مجموع الأطباق: ${formatNumber(subtotal)} ${currency}`]),
       ];
 
-      if (itemsDiscountTotal > 0) {
-        lines.push(`خصم على الأطباق${menuDiscountLabelText ? ` (${menuDiscountLabelText})` : ''}: -${formatNumber(itemsDiscountTotal)} ${currency}`);
-      }
-      if (menuOrderDiscountAmt > 0) {
-        lines.push(`خصم العرض${menuDiscountLabelText ? ` (${menuDiscountLabelText})` : ''}: -${formatNumber(menuOrderDiscountAmt)} ${currency}`);
-      }
-      if (firstOrderDiscountAmt > 0) {
-        lines.push(`خصم على الطلب (الطلب الأول ${firstOrderPct}%): -${formatNumber(firstOrderDiscountAmt)} ${currency}`);
-      }
-      if (spinDiscountAmt > 0 && spinWonReward) {
-        lines.push(`خصم على الطلب (مكافأة ${spinWonReward.label}): -${formatNumber(spinDiscountAmt)} ${currency}`);
-      }
-      if (pickupDiscountAmt > 0) {
-        lines.push(`خصم على الطلب (${pickupLabelText} ${pickupPct}%): -${formatNumber(pickupDiscountAmt)} ${currency}`);
-      }
-      if (totalDiscount > 0) {
-        lines.push(`إجمالي الخصم: -${formatNumber(totalDiscount)} ${currency}`);
-      }
-      if (qualifiesFreeGift && addons.freeGiftThreshold?.giftName) {
-        lines.push(`هدية مجانية: ${addons.freeGiftThreshold.giftName}`);
-      }
-      if (addons.cutleryOption?.enabled) {
-        lines.push(`أدوات الطعام: ${needCutlery ? 'مطلوبة' : 'غير مطلوبة'}`);
+      if (combinedNotes) {
+        lines.push('', `ملاحظات: ${combinedNotes}`);
       }
 
+      lines.push('', ordersPriceLine);
+
       if (orderType === 'delivery') {
-        const areaText =
-          activeZone?.area && activeCity?.name && activeZone.area !== activeCity.name && !activeZone.area.includes(activeCity.name)
-            ? `${activeZone.area} - ${activeCity.name}`
-            : activeZone?.area || activeCity?.name || '';
         lines.push(
-          `التوصيل${areaText ? ` (${areaText})` : ''}: ${
+          `التوصيل: ${
             qualifiesFreeDelivery
               ? spinFreeDelivery
                 ? 'مجاني (مكافأة)'
                 : 'مجاني'
-              : `${formatNumber(effectiveDeliveryFee)} ${currency}`
+              : formatNumber(effectiveDeliveryFee)
           }`
         );
-        if (customerAddress.trim()) lines.push(`العنوان: ${customerAddress.trim()}`);
-        if (gpsCoords) {
-          lines.push(`📍 الموقع (Google Maps):\nhttps://www.google.com/maps?q=${gpsCoords.lat},${gpsCoords.lng}`);
-          lines.push(`🚗 الموقع (Waze):\nhttps://waze.com/ul?ll=${gpsCoords.lat},${gpsCoords.lng}&navigate=yes`);
-        }
       }
+      if (qualifiesFreeGift && addons.freeGiftThreshold?.giftName) {
+        lines.push(`الهدية: ${addons.freeGiftThreshold.giftName}`);
+      }
+      if (addons.cutleryOption?.enabled) {
+        lines.push(`أدوات الطعام: ${needCutlery ? 'مطلوبة' : 'غير مطلوبة'}`);
+      }
+      lines.push(`المجموع: ${formatNumber(finalTotal)}`);
 
-      lines.push(`الإجمالي: ${formatNumber(finalTotal)} ${currency}`);
-      if (cu.n) lines.push(`الزبون: ${cu.n}`);
-      if (cu.ph) lines.push(`الهاتف: ${cu.ph}`);
-      if (combinedNotes) lines.push(`ملاحظات: ${combinedNotes}`);
+      const customerBlock: string[] = [];
+      if (orderType === 'delivery') {
+        const areaFallback =
+          activeZone?.area && activeCity?.name && activeZone.area !== activeCity.name && !activeZone.area.includes(activeCity.name)
+            ? `${activeZone.area} - ${activeCity.name}`
+            : activeZone?.area || activeCity?.name || '';
+        const addrText = customerAddress.trim() || areaFallback;
+        if (addrText) customerBlock.push(`العنوان: ${addrText}`);
+      }
+      if (cu.n) customerBlock.push(`الزبون: ${cu.n}`);
+      if (cu.ph) customerBlock.push(`الهاتف: ${cu.ph}`);
+      if (orderType === 'delivery' && gpsCoords) {
+        customerBlock.push(`📍 الموقع: https://www.google.com/maps?q=${gpsCoords.lat},${gpsCoords.lng}`);
+      }
+      if (customerBlock.length > 0) {
+        lines.push('', ...customerBlock);
+      }
 
       persistSharedProfile(
         {
